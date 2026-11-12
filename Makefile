@@ -37,7 +37,18 @@ REVISION_LATEX = pdflatex -interaction=nonstopmode -jobname=$(REVISION_JOB) \
 DIFF_BASE_REF ?= submitted-v1
 DIFF_TMP_DIR  := .diff-orig
 
-.PHONY: all clean revision diff all-revision
+.PHONY: all clean revision diff all-revision methods
+
+# Working record of new and changed methods for the revision (not part of
+# the submission build).
+METHODS = revision_methods
+methods: $(METHODS).tex $(BIB)
+	pdflatex -interaction=nonstopmode $(METHODS).tex
+	biber $(METHODS)
+	pdflatex -interaction=nonstopmode $(METHODS).tex
+	pdflatex -interaction=nonstopmode $(METHODS).tex
+	rm -f $(METHODS).aux $(METHODS).bbl $(METHODS).bcf $(METHODS).blg \
+	      $(METHODS).log $(METHODS).out $(METHODS).run.xml $(METHODS).toc
 
 all: $(TEX).pdf
 
@@ -112,4 +123,5 @@ all-revision: revision diff
 
 clean:
 	rm -f $(INTERMEDIATES) $(MAIN_AUX) $(TEX).pdf \
-	      $(REVISION_JOB).pdf $(REVISION_PDF) $(RESPONSES_PDF) $(DIFF_PDF)
+	      $(REVISION_JOB).pdf $(REVISION_PDF) $(RESPONSES_PDF) $(DIFF_PDF) \
+	      $(METHODS).pdf

@@ -1,0 +1,520 @@
+% revision_methods.tex -- working record of the methods added or changed in
+% the first revision (PNAS 2026-35068). Each section is written so that its
+% text can move into main.tex (Methods) or into an SI Methods section.
+%
+% Build: make methods  (revision_methods.pdf)
+%
+% Conventions:
+%   - \status{...} prints a blue note on what is done, running, or open.
+%     Define \hidestatus before \begin{document} to drop all of them.
+%   - Each section ends with a comment block "Code / results": the pipeline
+%     rule and script (repository kr-colab/ecolocator_pipeline, branch
+%     main, directory simulations/) and where the outputs are. These
+%     comments do not print.
+%   - Reviewer points are numbered as in pnas_rev1/review-responses.tex:
+%     R1.5 = reviewer 1, point 5.
+
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xspace}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage[style=authoryear,citestyle=authoryear,sorting=nyt,natbib=true]{biblatex}
+\addbibresource{ELrefs.bib}
+
+\newcommand{\dfir}{Douglas-fir\xspace}
+\newcommand{\ecolocator}{\texttt{EcoLocator}\xspace}
+\newcommand{\slim}{\texttt{SLiM}\xspace}
+\newcommand{\points}[1]{\par\noindent\textit{Reviewer points: #1.}\par}
+\ifdefined\hidestatus
+  \newcommand{\status}[1]{}
+\else
+  \newcommand{\status}[1]{\par\noindent\textcolor{blue}{[\textbf{Status:} #1]}\par}
+\fi
+
+\title{Revision methods: new and changed analyses}
+\author{Working document, PNAS 2026-35068 revision}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+%======================================================================
+\section{Scope}
+
+This document collects the methods that the revision adds or changes.
+Sections~\ref{sec:pipeline}--\ref{sec:evaluation} describe each method in
+full. Section~\ref{sec:corrections} lists statements in the submitted
+Methods that are wrong or do not match the analysis. Status notes (blue)
+record what is done and what is running; they are not manuscript text.
+
+%======================================================================
+\section{Simulation pipeline and reproducibility}
+\label{sec:pipeline}
+
+All continuous-space simulations and their analyses run in one Snakemake
+workflow \citep{molder_snakemake_2021}. A table of conditions gives the
+parameters of each condition and its number of replicates; the workflow
+makes the environment maps, runs \slim, adds neutral variation, fits
+\ecolocator, runs the genotype--environment association (GEA) tests, and
+scores every method against the true QTL. Software versions are fixed by a
+lock file: \slim 4.2.2 \citep{haller2023slim4}, \texttt{pyslim} 1.0.4,
+\texttt{msprime} 1.1.1 \citep{baumdicker2022efficient}, LEA 3.22.0
+\citep{frichot_lea_2015}, \texttt{shap} 0.51, and \ecolocator at a fixed
+commit.
+
+\paragraph{Seeds.} Every random step uses a seed derived from the condition
+name and the replicate number (the first 8 hexadecimal digits of the
+SHA-256 hash of ``\textit{condition}:\textit{replicate}''). \slim, recapitation,
+the neutral mutations, and every leave-one-out fold use it, so a rerun gives
+the same output.
+
+\paragraph{Environment maps.} The 110 maps of the submitted analysis are
+regenerated exactly with NLMpy 0.1.4 \citep{etherington_nlmpy_2015}:
+midpoint displacement on an $8\times8$ grid with Hurst exponent $H=0$, map
+$N$ with seed $N+41$. (NLMpy 1.2 gives different maps from the same seeds.)
+Each map set also gets a report with the spatial autocorrelation of its
+maps (Moran's $I$).
+
+\paragraph{Model parameters.} The landscape is $5\times5$ units with
+carrying capacity $K=100$ per unit area, so it holds about 2,500
+individuals at most; the realized population is 1,300 to 1,700 individuals
+(\cref{sec:runlength}), and every individual is sampled. QTL mutations
+arise only inside the QTL windows of each architecture, at rate
+$10^{-8}$ per base per generation, with normally distributed effects (SD
+0.05); with the 200 kb window of architecture 1 the trait-wide QTL mutation
+rate is $U = 2\times10^{-3}$ per genome copy. Architectures 2 and 3 have
+300 kb and 500 kb of QTL windows, so their $U$ is 1.5 and 2.5 times
+larger. Recombination is $10^{-6}$ per base, in \slim and in
+recapitation (ancestral $N_e = 2{,}000$); neutral mutations are added at
+$10^{-8}$ per base.
+
+\points{R1.5 (population size, mutation rate, carrying capacity), R1.8 (maps)}
+\status{Done. The pipeline reproduces the submitted LOO predictions
+byte-for-byte on the same CPU type.}
+
+% Code / results:
+%   simulations/ecosim (command), workflow/Snakefile, config/config.yaml,
+%   config/map_sets.tsv, workflow/scripts/make_maps.py, map_report.py,
+%   overlay.py, to_ecolocator.py. Seeds: rep_seed() in the Snakefile.
+%   Map check (Moran's I): map_reports/ of any run.
+
+%======================================================================
+\section{Run length and steady state}
+\label{sec:runlength}
+
+The submitted simulations ran for 10,000 ticks (the model default). We
+tested whether that is long enough for local adaptation and neutral
+diversity to reach steady state, in two ways.
+
+\paragraph{Trajectories.} \slim writes, every 100 ticks, the population
+size, the mean fitness from selection, the mean density regulation, the
+correlation between phenotype $z$ and local optimum $\theta$, the mean
+$|z-\theta|$, the phenotypic variance, the number of QTL mutations, and the
+mean age. Writing the log draws no random numbers. For each replicate and
+quantity, we average the log over blocks of 1,000 ticks (or $1/20$ of the
+run, if shorter), take the plateau as the mean of the last 20\% of the run,
+and the noise as the SD of the block means around a straight line fitted
+to the second half. The time to plateau is the start of the first block
+from which the block means stay within plateau $\pm 3\times$ noise for at
+least 10\% of the run. A quantity whose change from the third to the last
+quarter of the run exceeds 3 noise units has no plateau yet.
+
+\paragraph{Coalescence.} Neutral diversity is added after \slim, so the
+log cannot show whether it has reached equilibrium. For this, \slim writes
+the tree sequence at fixed intervals during one long run (writing a
+snapshot draws no random numbers; the \slim run is unchanged). For each
+snapshot we compute the fraction of the genome whose tree has a single root
+within the run. Below 1, part of the genealogy lies before the start of the
+run, where recapitation models it as one well-mixed population without
+space. Once the genome has coalesced within the run, the neutral genealogy
+no longer depends on that assumption; this is the standard burn-in check
+for tree-sequence simulations. We also compute, after recapitation and
+without mutations, the expected neutral diversity and the slope of expected
+divergence between spatial bins on log distance (isolation by distance).
+
+\paragraph{Results.} In 10 runs of 500,000 ticks per dispersal level on the
+$5\times5$ landscape ($\sigma_K=0.5$, architecture 1), 99\% of the genome
+had coalesced within the run after a median of 80,000 ticks (90th
+percentile 128,000; maximum 470,000) at $\sigma_D=0.1$, and 60,000 ticks
+(maximum 105,000) at $\sigma_D=0.3$. At 10,000 ticks only 7\% and 21\% of
+the genome had coalesced. We therefore rerun the Figure~2 conditions for
+200,000 ticks, which covers about 90\% of replicates at $\sigma_D=0.1$ and
+all replicates at $\sigma_D=0.3$; the longer runs add about 2\% to the
+compute, because the leave-one-out fits take about 98\% of it.
+
+In 5 replicates each, run length changed locus discovery much more than
+prediction. From 10,000 to 100,000 ticks, LOO $R^2$ of location and
+environment changed by less than 0.015, but the AUC-PR of every method for
+ranking QTL fell by roughly half (for example, LFMM2 with $K=5$ from 0.37 to
+0.20 at $\sigma_D=0.1$, and SHAP from 0.37 to 0.22 at $\sigma_D=0.3$). The
+number of segregating QTL with minor-allele frequency (MAF) $\geq 5\%$ rose
+from 20 to 31 at $\sigma_D=0.1$.
+
+\points{R1.5 (long-term maintenance of locally adaptive alleles)}
+\status{Burn-in: $5\times5$ done; $10\times10$ (1,000,000 ticks) running.
+Steady-state rerun of the 7 Figure~2 conditions, 100 replicates each, at
+200,000 ticks: running (started 2026-11-11).}
+
+% Code / results:
+%   SLiM log: LOGFILE in workflow/slim/localadaptation_nonWF.slim.
+%   Plateau rule: workflow/scripts/trajectories.py (rule trajectories).
+%   Snapshots: SNAPSHOT_INTERVAL in the SLiM model; workflow/scripts/
+%   snapshot_stats.py (rule snapshot_stats); config/conditions_burnin.tsv.
+%   Burn-in results: talapas /projects/kernlab/adkern/ecosim_snapshot_trial/
+%     simulations/results/conditions_burnin/
+%   10k vs 100k: talapas /projects/kernlab/adkern/ecolocator_pipeline/
+%     equil_compare/equilibrium_summary.tsv
+%   Steady-state rerun: config/conditions_steady.tsv; talapas
+%     /projects/kernlab/adkern/ecolocator_pipeline_main/simulations/results/
+%     conditions_steady/
+
+%======================================================================
+\section{Landscape size}
+\label{sec:landscape}
+
+To test whether the $5\times5$ landscape is too small, we compared it with
+a $10\times10$ landscape at the same density ($K=100$ per unit area, so
+about four times as many individuals), at $\sigma_D=0.1$ and 0.3
+($\sigma_K=0.5$, architecture 1; 5 replicates each; 100,000 ticks). The
+environment map grows with the landscape so that grid points stay 0.71
+units apart: $8\times8$ for $5\times5$ (the submitted maps) and
+$15\times15$ for $10\times10$, both midpoint displacement with $H=0$. At
+the same $H$, NLMpy's larger maps are smoother (Moran's $I$ about 0.49
+against 0.37).
+
+\status{Trajectories done (simulation only). The $10\times10$ burn-in runs
+(coalescence) end about 2026-11-12. No LOO fits on $10\times10$ yet.}
+
+% Code / results:
+%   config/conditions_landscape.tsv (loo False); map sets mpd_h0_8x8 and
+%   mpd_h0_15x15 in config/map_sets.tsv.
+
+%======================================================================
+\section{Polygenicity}
+\label{sec:polygenicity}
+
+To cover the regime of many small-effect alleles, we varied the trait-wide
+QTL mutation rate $U$ (QTL mutation rate times the 200 kb QTL window of
+architecture 1) over three orders of magnitude, from few large-effect to
+many small-effect QTL, at $\sigma_D=0.3$ and $\sigma_K=0.5$. The SD of QTL
+effects scales with $1/\sqrt{U}$, so the new genetic variance per
+generation, $U\sigma_\alpha^2$, stays the same:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Condition & $U$ & QTL mutation rate & SD of QTL effects \\
+\midrule
+u2e-4 & $2\times10^{-4}$ & $10^{-9}$ & 0.158 \\
+u2e-3 & $2\times10^{-3}$ & $10^{-8}$ (default) & 0.05 (default) \\
+u2e-2 & $2\times10^{-2}$ & $10^{-7}$ & 0.0158 \\
+u2e-1 & $2\times10^{-1}$ & $10^{-6}$ & 0.005 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Each condition has 10 replicates of 200,000 ticks. We measure the
+architecture of each replicate (\cref{sec:architecture}): the number of QTL
+sites that carry local adaptation and their ages.
+
+\points{R1.5 (critical mutation rate; many alleles of small effect), R2.5
+(architectures not polygenic enough), R1.14, R1.15}
+\status{A pilot at 10,000 ticks: the effective number of contributing
+sites rose from 2.4 to 589 across the four rates; LOO $R^2$ did not change;
+the SHAP ranking of QTL fell to random at high $U$; LFMM2 with $K=1$ held.
+The 200,000-tick runs are running (started 2026-11-11).
+Open: the critical mutation rate of Sakamoto et al.\ (2025, \textit{Genetics})
+for this population structure, to place the four rates relative to it.}
+
+% Code / results:
+%   config/conditions_polygenic.tsv (columns m, qtl_sd, runtime).
+%   Pilot (10k): talapas /projects/kernlab/adkern/ecolocator_pipeline/
+%     polygenic_pilot/
+%   Rerun: talapas .../ecolocator_pipeline_main/simulations/results/
+%     conditions_polygenic/
+%   TODO: add the Sakamoto et al. 2025 entry to ELrefs.bib
+%     (Genetics, doi 10.1093/genetics/iyae165).
+
+%======================================================================
+\section{Leave-one-out cross-validation with per-fold SHAP}
+\label{sec:loo}
+
+Every individual is one fold. A model trained on all other individuals
+predicts its location $(x, y)$ and environment, and gives the SHAP values
+of its genotype, so every prediction and every SHAP value comes from a
+model that did not see that individual. In each fold, 10\% of the training
+individuals are held out for validation (early stopping after 100 epochs
+without improvement, at most 5,000 epochs; the learning rate drops after
+16 epochs without improvement; batch size 32). The network is the
+\ecolocator default: batch normalization, 10 dense layers of 256 ELU
+units with dropout 0.25 after the fifth, and two output heads; loss
+weights $w_\text{loc}=w_\text{env}=0.5$. A fold's validation split and
+network initialization depend only on the replicate seed and the fold
+index, so the result does not depend on how folds are distributed across
+processes.
+
+SHAP values are expected gradients (\texttt{shap.GradientExplainer},
+\citealp{lundberg_shap_2017}) of each output with respect to the held-out
+genotype, with 100 training individuals of that fold as the background.
+The SNP score is the mean $|\text{SHAP}|$ over all folds, for each output
+($x$, $y$, environment). We rank SNPs by this raw score; no step uses the
+QTL labels (\cref{sec:corrections}, item~3).
+
+\points{R1.2 (what counts as an adaptive allele)}
+\status{Done (package \texttt{ecolocator loo} with \texttt{--fold-start},
+\texttt{--fold-stop}, \texttt{--shap-out}). A pilot showed that 5-fold
+cross-fitted SHAP matches LOO SHAP, and that conditioning SHAP on genotype
+PCs makes the QTL ranking worse.}
+
+% Code / results:
+%   Package: kr-colab/ecolocator, EcoLocator.fit_predict_loo (fold ranges,
+%   per-fold SHAP of the held-out sample).
+%   Pipeline: rule loo, workflow/scripts/loo_parallel.py, merge_loo.py,
+%   merge_shap.py. Outputs per replicate: loo_predictions.tsv, metrics.tsv,
+%   shap/mean_abs_shap.tsv.
+
+%======================================================================
+\section{LFMM2}
+\label{sec:lfmm}
+
+We ran LFMM2 \citep{caye_lfmm2_2019} with LEA 3.22.0
+(\texttt{lfmm2} and \texttt{lfmm2.test}) on the individual genotypes
+(0/1/2) against the local optimum, for $K = 1$--6, 8, and 10 latent
+factors. The scree plot of the genotype PCA has no clear elbow in these
+simulations, so we keep results for all $K$ and report $K=1$ and $K=5$.
+Sites with a minor-allele count below 2 are not tested. $p$-values are
+calibrated by the genomic inflation factor (\texttt{genomic.control =
+TRUE}). For the overlap with SHAP, LFMM2 hits are sites with
+Benjamini--Hochberg $q < 0.05$ \citep{benjamini_hochberg_1995}.
+
+\points{R1.1, R1.9 (compare with LFMM2)}
+\status{Done.}
+
+% Code / results:
+%   workflow/scripts/lfmm.R (rule lfmm). Outputs per replicate:
+%   lfmm/pvalues.tsv, lfmm/summary.tsv (GIF per K), lfmm/eigenvalues.tsv.
+
+%======================================================================
+\section{Location-corrected GEA}
+\label{sec:correctedgea}
+
+The location-corrected GEA uses \ecolocator's predicted locations as the
+correction for population structure. For every SNP $j$ we fit, by least
+squares,
+\begin{equation*}
+g_j = b_0 + b\,e + f(\hat{x}, \hat{y}) + \varepsilon,
+\end{equation*}
+where $g_j$ is the 0/1/2 genotype, $e$ the environment, and $f$ a smooth
+two-dimensional function (tensor-product cubic B-splines, up to 5 knots per
+axis, fewer for small samples, at least 10 individuals per basis function)
+of the location that \ecolocator predicted for the individual with a model
+that did not see it (the LOO predictions, \cref{sec:loo}). The predicted
+location stands for population structure; the true location would also
+carry the environment and remove the signal. The $z$-scores
+$\hat{b}/\mathrm{SE}(\hat{b})$ are calibrated by the genomic inflation factor,
+as in LFMM2.
+
+\status{Done. Over 873 replicates of the submitted-style runs, it ranked
+QTL as well as LFMM2 with $K=5$ (mean difference in AUC-PR $-0.001$), and
+better than LFMM2 with $K=1$ ($+0.028$; better in 69\% of replicates), SHAP
+($+0.057$; 75\%), and the same test with true locations ($+0.030$; 78\%).
+Candidate for the main locus-discovery result.}
+
+% Code / results:
+%   workflow/scripts/location_corrected_gea.py (rule corrected_gea).
+%   Outputs per replicate: corrected_gea/results.tsv, summary.tsv.
+%   873-replicate comparison: talapas /projects/kernlab/adkern/
+%     ecolocator_pipeline/audit/corrected_gea.tsv
+
+%======================================================================
+\section{WZA and the top-candidate test}
+\label{sec:wza}
+
+We follow \citet{booker_wza_2024} and the documented use of their script
+(\texttt{general\_WZA\_script.py}, TBooker/WZA on GitHub, commit
+\texttt{8191f58}; the same file as in the submitted analysis).
+\begin{enumerate}
+\item For every SNP, Kendall's $\tau_b$ between genotype (0/1/2) and the
+  environment of each individual, with its $p$-value. $\tau_b$ allows for
+  the many ties of genotype data.
+\item The script removes SNPs with MAF $\leq 0.05$ and turns each
+  $p$-value into an empirical $p$-value: its rank among all SNPs divided by
+  the number of SNPs.
+\item Windows are 10 kb, the window size of Booker et al.'s simulations.
+  The WZA combines the empirical $p$-values of a window into a weighted $Z$
+  (Stouffer's $Z$ with weights $\bar{p}(1-\bar{p})$, where $\bar{p}$ is the
+  allele frequency), and the script corrects its $p$-value for the number
+  of SNPs per window.
+\item The top-candidate test counts the SNPs in a window whose empirical
+  $p$-value is in the top 1\% genome-wide, and tests for an excess with a
+  binomial test whose expectation is 1\%.
+\end{enumerate}
+
+\noindent The empirical $p$-values are part of the method. The
+top-candidate test also depends on them, because its binomial expectation
+is the hit threshold itself. The submitted analysis passed parametric
+$p$-values with the script's \texttt{--empiricalP} flag, which skips step
+2, and used the top 5\% as hits (\cref{sec:corrections}, item~4).
+
+Booker et al.\ analysed allele frequencies of sampled demes; here every
+individual's genotype is correlated with its own environment. The
+empirical ranking is the same in both cases.
+
+\points{R1.9 (WZA was designed for allele frequencies)}
+\status{Done. On one replicate of $\sigma_D=0.1$, the documented use raised
+the window-level AUC-PR of WZA from 0.53 to 0.63 and of the top-candidate
+test from 0.29 to 0.68. Open: an allele-frequency version (sampled demes)
+to test Booker et al.'s design directly.}
+
+% Code / results:
+%   workflow/scripts/wza_input.py (Kendall tau-b, MAF, windows), rule wza.
+%   Rule fetch_wza downloads Booker's script at the fixed commit (MD5
+%   a2fa7df791f9b817779585ea440a9d74). Outputs: wza/input.csv,
+%   wza/windows.csv.
+
+%======================================================================
+\section{Genetic architecture and true positives}
+\label{sec:architecture}
+
+Phenotypes are additive sums of QTL effects, so the covariance between
+phenotype $z$ and local optimum $\theta$ over all individuals splits
+exactly into one term per QTL site:
+\begin{equation*}
+\mathrm{Cov}(z,\theta) = \sum_i c_i, \qquad c_i = \mathrm{Cov}(g_i, \theta),
+\end{equation*}
+where $g_i$ is an individual's summed effect at site $i$ (both copies). We
+call $c_i$ the contribution of site $i$ to local adaptation. A negative
+$c_i$ marks a site that works against local adaptation. From the
+contributions we report the number of segregating QTL sites, the effective
+number of contributing sites $(\sum|c_i|)^2/\sum c_i^2$, the shares of the
+largest 1 and 5 sites, and the contribution-weighted mean age.
+
+We score every method against three kinds of true positive:
+\begin{description}
+\item[Any QTL.] The SNP is a QTL site; the window holds one.
+\item[Major QTL.] The fewest QTL sites that together carry 80\% of
+  $\sum_i |c_i|$. The sign is not used, because a GEA test detects
+  association in either direction. This set is relative: every replicate
+  has major QTL.
+\item[Locally adapted (Booker et al.'s rule).] A window is locally adapted
+  if the summed contribution of its QTL sites (the covariance between the
+  window's additive effect and $\theta$) exceeds 0.005, the threshold of
+  \citet{booker_wza_2024} for genes; a SNP, if its own $c_i$ does. Only
+  positive contributions qualify, and the threshold is absolute, so a
+  weakly adapted replicate can have none. Booker et al.\ computed the
+  covariance from deme means; here it is from individuals, each with its
+  own optimum.
+\end{description}
+
+\noindent In the 10,000- and 100,000-tick runs, the major QTL were 8 to 12
+sites per replicate (15--20\% of QTL sites), and the threshold of 0.005
+marked 5.6 to 6.8 windows per replicate, close to the 5.4 to 7.2 locally
+adapted genes per replicate of \citet{booker_wza_2024}.
+
+\points{R1.2, R1.16 (what counts as an adaptive allele)}
+\status{Done.}
+
+% Code / results:
+%   workflow/scripts/architecture.py (rule architecture): architecture/
+%   qtl_contributions.tsv, architecture/summary.tsv. The script checks that
+%   the per-site effects add up to the phenotypes SLiM recorded.
+%   Major QTL and Booker rule: major_qtl() and evaluate() in
+%   workflow/scripts/compare_rep.py; settings major_qtl_share,
+%   adapted_cov_threshold in config/config.yaml.
+
+%======================================================================
+\section{Evaluation of the SNP and window rankings}
+\label{sec:evaluation}
+
+\paragraph{Scores.} Every method gives each SNP a score in which larger
+means stronger evidence and no score uses the QTL labels: mean
+$|\text{SHAP}|$ for each output; $-\log_{10} p$ for LFMM2 (each $K$), the
+location-corrected GEA, and Kendall's $\tau_b$; and for WZA and the
+top-candidate test, the $-\log_{10} p$ of the SNP's window. SNPs with MAF
+below 5\% are left out.
+
+\paragraph{Levels.} We evaluate the rankings at two levels.
+At the SNP level, every SNP is one unit.
+At the window level, the 10 kb WZA windows are the units: WZA and the
+top-candidate test score windows themselves, and every other method scores
+a window by its strongest SNP, as in the comparison of
+\citet{booker_wza_2024}. The SNP level favours single-SNP methods and the
+window level favours window methods, so we report both.
+
+\paragraph{Metrics.} For each replicate, level, kind of true positive
+(\cref{sec:architecture}), and method we compute the area under the
+precision--recall curve (AUC-PR; trapezoidal, as in the submitted
+analysis). We summarize each condition by the mean, SD, and standard error
+over replicates. For precision--recall and ROC curves of a condition, we
+pool the replicates after turning each method's scores into percentile
+ranks within each replicate, because raw scores (mean $|\text{SHAP}|$ above
+all) are on a different scale in every replicate.
+
+\points{R1.1, R1.9}
+\status{Done. Preliminary (5 replicates per group; window level; major QTL
+as true positives): at 100,000 ticks, Kendall's $\tau_b$, LFMM2, and the
+location-corrected GEA reach AUC-PR 0.65--0.80; the top-candidate test
+0.64--0.72; WZA 0.36--0.43; SHAP 0.22--0.50. Consistent with the WZA
+preprint's own result that single-SNP tests win when allele frequencies
+are well estimated and the environment is the selective agent.}
+
+% Code / results:
+%   workflow/scripts/compare_rep.py (rule compare): comparison/snps.tsv,
+%   metrics.tsv, eval.tsv, windows.tsv, snp_scores.tsv.
+%   workflow/scripts/summarize_comparison.py (rule comparison_all):
+%   comparison_eval_summary.tsv (mean/SD/SE per condition, level, truth,
+%   method) and the tidy tables for figures.
+%   workflow/scripts/plot_comparison.py (rule comparison_curves): PR/ROC
+%   figures per condition, comparison_curves.tsv, comparison_curves_auc.tsv.
+%   Preliminary tables: poppy ~/ecolocator_pipeline/simulations/results/
+%   equil_compare/
+
+%======================================================================
+\section{Corrections to the submitted Methods}
+\label{sec:corrections}
+
+\begin{enumerate}
+\item \textbf{Spatial autocorrelation of the maps.} The Methods state that
+  $H=0$ ``removes spatial autocorrelation''. The 110 maps have Moran's $I$
+  of 0.36 on average (0.08--0.61). The environment is patchy, not
+  uncorrelated with space. (R1.8)
+\item \textbf{Run length.} The Methods do not state the run length. It was
+  10,000 ticks, far from steady state (\cref{sec:runlength}).
+\item \textbf{SHAP ``empirical FDR score''.} The score ranks SNPs by mean
+  $|\text{SHAP}|$ and then assigns each rank the fraction of neutral SNPs
+  above it, computed from the true labels. Ranking by this score uses the
+  labels being evaluated. The revised analysis ranks by raw mean
+  $|\text{SHAP}|$.
+\item \textbf{WZA and top-candidate settings.} The Methods describe
+  parametric $p$-values and a top-1\% threshold. The analysis used
+  \texttt{--empiricalP} with parametric $p$-values (no empirical step) and
+  a top-5\% threshold (\cref{sec:wza}).
+\item \textbf{Loss weights.} The Methods give a default of 1.0 for both
+  weights (true for the \ecolocator command line); the simulations used
+  0.5 for both. The ratio is the same.
+\item \textbf{Selection sweep values.} The Methods give $\sigma_K = 0.3,
+  0.5, 0.7$; Fig.~S4 gives 0.5, 0.7, 0.9. The simulations used 0.3, 0.5,
+  0.7.
+\item \textbf{Booker et al.'s comparison.} The Methods say that Booker et
+  al.\ found WZA and top-candidate as good as or better than Kendall's
+  $\tau$, BayPass, LFMM, and RDA. Their preprint compares Kendall's $\tau$
+  and BayPass only, and its Fig.~S12 shows single-SNP tests ahead when
+  allele frequencies are known well.
+\item \textbf{Comparison level.} The submitted comparison mapped window
+  $p$-values onto SNPs and scored at the SNP level only, which puts window
+  methods at a disadvantage (\cref{sec:evaluation}).
+\end{enumerate}
+
+\status{Check item 6 against Jordan's run configuration, and item 7
+against the published version of \citet{booker_wza_2024}, before changing
+the text.}
+
+\printbibliography
+
+\end{document}
