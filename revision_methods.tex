@@ -79,7 +79,8 @@ regenerated exactly with NLMpy 0.1.4 \citep{etherington_nlmpy_2015}:
 midpoint displacement on an $8\times8$ grid with Hurst exponent $H=0$, map
 $N$ with seed $N+41$. (NLMpy 1.2 gives different maps from the same seeds.)
 Each map set also gets a report with the spatial autocorrelation of its
-maps (Moran's $I$).
+maps (Moran's $I$). Map sets with other spatial patterns are described in
+\cref{sec:spatial}.
 
 \paragraph{Model parameters.} The landscape is $5\times5$ units with
 carrying capacity $K=100$ per unit area, so it holds about 2,500
@@ -92,7 +93,9 @@ rate is $U = 2\times10^{-3}$ per genome copy. Architectures 2 and 3 have
 300 kb and 500 kb of QTL windows, so their $U$ is 1.5 and 2.5 times
 larger. Recombination is $10^{-6}$ per base, in \slim and in
 recapitation (ancestral $N_e = 2{,}000$); neutral mutations are added at
-$10^{-8}$ per base.
+$10^{-8}$ per base. A site is a QTL site if it holds a mutation of the
+QTL mutation type; every step (the true labels, the architecture, F$_{ST}$
+on neutral sites, the QTL counts) uses the same definition.
 
 \points{R1.5 (population size, mutation rate, carrying capacity), R1.8 (maps)}
 \status{Done. The pipeline reproduces the submitted LOO predictions
@@ -136,7 +139,13 @@ space. Once the genome has coalesced within the run, the neutral genealogy
 no longer depends on that assumption; this is the standard burn-in check
 for tree-sequence simulations. We also compute, after recapitation and
 without mutations, the expected neutral diversity and the slope of expected
-divergence between spatial bins on log distance (isolation by distance).
+divergence between spatial bins on log distance (isolation by distance),
+and, before recapitation and among the living individuals, the numbers of
+QTL sites that are segregating, fixed, and segregating with MAF $\geq 5\%$.
+(Each snapshot simplifies the tree sequence, which changes the random
+draws of recapitation and of the neutral mutations at the end of the run;
+the \slim run itself, its QTL, and its genealogy are unchanged. Snapshot
+runs serve only as diagnostics.)
 
 \paragraph{Results.} In 10 runs of 500,000 ticks per dispersal level on the
 $5\times5$ landscape ($\sigma_K=0.5$, architecture 1), 99\% of the genome
@@ -154,12 +163,18 @@ environment changed by less than 0.015, but the AUC-PR of every method for
 ranking QTL fell by roughly half (for example, LFMM2 with $K=5$ from 0.37 to
 0.20 at $\sigma_D=0.1$, and SHAP from 0.37 to 0.22 at $\sigma_D=0.3$). The
 number of segregating QTL with minor-allele frequency (MAF) $\geq 5\%$ rose
-from 20 to 31 at $\sigma_D=0.1$.
+from 20 to 31 at $\sigma_D=0.1$. At 200,000 ticks, one replicate per
+dispersal level had 69, 42, and 38 segregating QTL sites and 46, 25, and 23
+fixed QTL sites at $\sigma_D = 0.1$, 0.3, and 0.5: fixed QTL make up about
+40\% of all QTL sites at steady state.
 
 \points{R1.5 (long-term maintenance of locally adaptive alleles)}
-\status{Burn-in: $5\times5$ done; $10\times10$ (1,000,000 ticks) running.
-Steady-state rerun of the 7 Figure~2 conditions, 100 replicates each, at
-200,000 ticks: running (started 2026-11-11).}
+\status{Burn-in: $5\times5$ done. $10\times10$ (1,000,000 ticks): all
+\slim runs finished; the coalescence statistics wait in the queue
+(2026-11-12). QTL counts per snapshot are in the pipeline, but the running
+burn-in predates them. Steady-state rerun of the 7 Figure~2 conditions, 100
+replicates each, at 200,000 ticks: running since 2026-11-11, all 700
+replicates simulated, LOO done for 473 (2026-11-12 17:00).}
 
 % Code / results:
 %   SLiM log: LOGFILE in workflow/slim/localadaptation_nonWF.slim.
@@ -173,6 +188,8 @@ Steady-state rerun of the 7 Figure~2 conditions, 100 replicates each, at
 %   Steady-state rerun: config/conditions_steady.tsv; talapas
 %     /projects/kernlab/adkern/ecolocator_pipeline_main/simulations/results/
 %     conditions_steady/
+%   QTL counts per snapshot: qtl_counts() in snapshot_stats.py, with the
+%   counting rule shared with architecture.py (treeseq.qtl_site_counts).
 
 %======================================================================
 \section{Landscape size}
@@ -188,12 +205,107 @@ $15\times15$ for $10\times10$, both midpoint displacement with $H=0$. At
 the same $H$, NLMpy's larger maps are smoother (Moran's $I$ about 0.49
 against 0.37).
 
-\status{Trajectories done (simulation only). The $10\times10$ burn-in runs
-(coalescence) end about 2026-11-12. No LOO fits on $10\times10$ yet.}
+\status{Trajectories done (simulation only). The $10\times10$ burn-in \slim
+runs finished on 2026-11-12; their coalescence statistics are waiting in
+the queue. No LOO fits on $10\times10$ yet.}
 
 % Code / results:
 %   config/conditions_landscape.tsv (loo False); map sets mpd_h0_8x8 and
 %   mpd_h0_15x15 in config/map_sets.tsv.
+
+%======================================================================
+\section{Spatial pattern of the environment}
+\label{sec:spatial}
+
+To see how the spatial pattern of the environment changes the results, we
+added five map sets to the submitted one. They range from environments
+where neighbouring cells differ to environments that change steadily
+across space, where the environment and population structure are
+confounded. All are $8\times8$ grids with 110 maps and seeds from 42, so map
+$N$ of every set starts from the same random draws:
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+Map set & Pattern & Moran's $I$, mean (range) \\
+\midrule
+checker & paper map's values on a chessboard & $-0.68$ ($-0.78$ to $-0.56$) \\
+shuffle & paper map's cells in random order & $-0.02$ ($-0.20$ to $0.19$) \\
+paper & midpoint displacement, $H=0$ & $0.36$ ($0.08$ to $0.61$) \\
+$H=0.5$ & midpoint displacement, $H=0.5$ & $0.52$ ($0.17$ to $0.78$) \\
+$H=1$ & midpoint displacement, $H=1$ & $0.65$ ($0.33$ to $0.86$) \\
+gradient & planar gradient, random direction & $0.86$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The checker and shuffle sets rearrange the paper maps: each map
+keeps every value of the paper map with the same seed, and only the
+positions change. The checker set puts the upper half of the values on the
+dark squares of a chessboard and the lower half on the light squares, each
+half in random order, so neighbouring cells differ (negative spatial
+autocorrelation): here population structure and the environment are least
+alike, the case that \citet{booker_wza_2024} suggested. The shuffle set has
+no spatial autocorrelation in expectation, the property the submitted
+Methods ascribed to the paper maps. Because the values are the same,
+differences between the paper, shuffle, and checker sets come from the
+spatial pattern alone. The gradient set is the opposite extreme: the
+environment is collinear with space. Each map set runs at $\sigma_D = 0.1$
+and 0.3 ($\sigma_K=0.5$, architecture 1; 50 replicates each; 200,000
+ticks); the paper-map conditions at the same settings are part of the
+steady-state rerun (\cref{sec:runlength}).
+
+\points{R1.8 (quantify autocorrelation; a chessboard map), R2.18 (spatial
+autocorrelation between environment and demographic structure), R1.5
+(collinear selective pressures and geography)}
+\status{Configured and tested; not run yet. 10 conditions, 500
+replicates, about 15,000--30,000 CPU-hours; to start after the current runs,
+because the lab's fair-share is low.}
+
+% Code / results:
+%   Map models and arrangements: workflow/scripts/make_maps.py (--model
+%   gradient; --arrangement shuffle|checker); rows in config/map_sets.tsv
+%   (checker_h0_8x8, shuffle_h0_8x8, mpd_h05_8x8, mpd_h1_8x8,
+%   gradient_8x8). Conditions: config/conditions_autocorr.tsv.
+
+%======================================================================
+\section{Population differentiation (F\texorpdfstring{$_{ST}$}{ST})}
+\label{sec:fst}
+
+To place the simulations among empirical estimates, we computed
+F$_{ST}$ between spatial bins, which play the role of demes. The landscape
+is cut into square bins of one landscape unit (25 bins of about 40--60
+individuals on the $5\times5$ landscape; bins with fewer than 10
+individuals are left out). F$_{ST}$ of two bins $X$ and $Y$ is Hudson's form
+as computed by \texttt{tskit},
+\begin{equation*}
+F_{ST} = 1 - \frac{2(d_X + d_Y)}{d_X + 2d_{XY} + d_Y},
+\end{equation*}
+with $d_X$ the diversity within $X$ and $d_{XY}$ the divergence between $X$
+and $Y$, on neutral sites only (QTL sites removed). We compute it from the
+neutral SNPs, as an empirical study would, and from the genealogy itself
+(\texttt{tskit} branch mode), which has no mutational noise. For each
+replicate we report the mean and median pairwise F$_{ST}$, F$_{ST}$ between
+neighbouring bins and between bins more than half the landscape apart, the
+total F$_{ST}$ ($1 -$ mean diversity within bins $/$ diversity of all
+individuals), and the slope of $F_{ST}/(1-F_{ST})$ on log distance between
+bins (isolation by distance; Rousset 1997).
+
+In one 200,000-tick replicate per dispersal level, the mean pairwise
+F$_{ST}$ was 0.14, 0.057, and 0.034 at $\sigma_D = 0.1$, 0.3, and 0.5 (total
+F$_{ST}$ 0.24, 0.10, and 0.07); SNP-based and genealogy-based values agreed
+within 0.003.
+
+\points{R1.1 (F$_{ST}$ across the simulated populations)}
+\status{In the pipeline for every condition. To be added to all 700
+replicates of the steady-state rerun when it ends (about 2 s per
+replicate). Open: add the Rousset 1997 entry to ELrefs.bib; compare with
+F$_{ST}$ estimates for conifers.}
+
+% Code / results:
+%   workflow/scripts/fst.py (rule fst, runs in the head job): fst/pairs.tsv,
+%   fst/summary.tsv per replicate; fst_summary_all.tsv per run. Settings
+%   fst_bin_size, fst_min_individuals in config/config.yaml.
 
 %======================================================================
 \section{Polygenicity}
@@ -228,7 +340,8 @@ sites that carry local adaptation and their ages.
 \status{A pilot at 10,000 ticks: the effective number of contributing
 sites rose from 2.4 to 589 across the four rates; LOO $R^2$ did not change;
 the SHAP ranking of QTL fell to random at high $U$; LFMM2 with $K=1$ held.
-The 200,000-tick runs are running (started 2026-11-11).
+The 200,000-tick runs are running (started 2026-11-11; all 40
+replicates simulated, LOO done for 29 on 2026-11-12).
 Open: the critical mutation rate of Sakamoto et al.\ (2025, \textit{Genetics})
 for this population structure, to place the four rates relative to it.}
 
