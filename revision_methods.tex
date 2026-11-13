@@ -19,6 +19,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{xspace}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -52,6 +53,46 @@ Sections~\ref{sec:pipeline}--\ref{sec:evaluation} describe each method in
 full. Section~\ref{sec:corrections} lists statements in the submitted
 Methods that are wrong or do not match the analysis. Status notes (blue)
 record what is done and what is running; they are not manuscript text.
+
+%======================================================================
+\section{Headline results}
+\label{sec:headlines}
+
+All at steady state (200,000 ticks, $5\times5$ landscape, 100 replicates per
+Figure~2 condition) unless stated.
+\begin{enumerate}
+\item \textbf{The submitted runs were far from steady state.} At 10,000
+  ticks only 7--21\% of the genome had coalesced; 99\% coalescence took a
+  median of 60,000--80,000 ticks (\cref{sec:runlength}). At steady state,
+  \ecolocator's environment $R^2$ is 0.03--0.19 higher than in Table~S2
+  (\cref{sec:loo}).
+\item \textbf{A better network.} A polygenic-score unit with the
+  environment loss kept out of the location trunk raises environment $R^2$
+  by $0.068 \pm 0.002$ over the current network, in all 560 held-out test
+  replicates (up to $+0.13$ at higher dispersal), and location $R^2$ by
+  0.013 (\cref{sec:pgs}).
+\item \textbf{The location-corrected GEA matches LFMM2 without choosing
+  $K$.} At the window level it ties or beats LFMM2 with the better $K$ in
+  every condition; at the SNP level LFMM2 with $K=5$ is ahead by 0.01--0.02
+  AUC-PR when structure is strong. SHAP ranks QTL far worse (window-level
+  AUC-PR 0.25--0.52 against 0.50--0.84) (\cref{sec:evaluation}).
+\item \textbf{FDR is near its target once genomic control uses the scored
+  SNPs.} Structure inflates the tests much more for common SNPs than for
+  rare ones, so a genomic inflation factor over all SNPs, as first run,
+  was too small for the SNPs we score, and window-level FDR at $q<0.05$
+  was 19--64\% for LFMM2 and the corrected GEA (\cref{sec:calibration}). With the factor
+  from SNPs with MAF $\geq 0.05$, FDR is 0.06--0.18 for the corrected GEA
+  (PGS locations) and 0.04--0.14 for LFMM2; it is highest under the
+  strongest structure. The corrected GEA has the most power in every
+  condition. WZA and the top-candidate test make almost no discoveries
+  (\cref{sec:evaluation}).
+\item \textbf{Polygenicity changes locus discovery, not prediction}
+  (\cref{sec:polygenicity}).
+\item \textbf{Structure:} mean pairwise F$_{ST}$ 0.16, 0.085, and 0.045 at
+  $\sigma_D = 0.1$, 0.3, 0.5; strong selection raises it to 0.25 through a
+  smaller population, so the $\sigma_K$ sweep varies structure too
+  (\cref{sec:fst}).
+\end{enumerate}
 
 %======================================================================
 \section{Simulation pipeline and reproducibility}
@@ -320,16 +361,32 @@ total F$_{ST}$ ($1 -$ mean diversity within bins $/$ diversity of all
 individuals), and the slope of $F_{ST}/(1-F_{ST})$ on log distance between
 bins (isolation by distance; Rousset 1997).
 
-In one 200,000-tick replicate per dispersal level, the mean pairwise
-F$_{ST}$ was 0.14, 0.057, and 0.034 at $\sigma_D = 0.1$, 0.3, and 0.5 (total
-F$_{ST}$ 0.24, 0.10, and 0.07); SNP-based and genealogy-based values agreed
-within 0.003.
+Means over the 100 replicates of each steady-state condition (SNP-based;
+genealogy-based values agree within 0.003):
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Condition & pairwise & total & IBD slope \\
+\midrule
+$\sigma_D=0.1$, $\sigma_K=0.5$, architectures 1--3 & 0.148--0.160 & 0.25--0.27 & 0.17--0.19 \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.247 & 0.40 & 0.47 \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.085 & 0.15 & 0.09 \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.045 & 0.08 & 0.04 \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.045 & 0.08 & 0.05 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Selection strength changes neutral structure about as much as
+dispersal: with strong selection fewer individuals survive (about 1,000
+against 1,500 with weak selection), so drift is stronger. The $\sigma_K$
+sweep therefore varies structure and selection together. Polygenicity
+barely changes F$_{ST}$ (0.079--0.090 across the four rates).
 
 \points{R1.1 (F$_{ST}$ across the simulated populations)}
-\status{In the pipeline for every condition. To be added to all 700
-replicates of the steady-state rerun when it ends (about 2 s per
-replicate). Open: add the Rousset 1997 entry to ELrefs.bib; compare with
-F$_{ST}$ estimates for conifers.}
+\status{Done for all 740 steady-state replicates. Open: add the Rousset
+1997 entry to ELrefs.bib; compare with F$_{ST}$ estimates for conifers.}
 
 % Code / results:
 %   workflow/scripts/fst.py (rule fst, runs in the head job): fst/pairs.tsv,
@@ -369,8 +426,8 @@ sites that carry local adaptation and their ages.
 \status{A pilot at 10,000 ticks: the effective number of contributing
 sites rose from 2.4 to 589 across the four rates; LOO $R^2$ did not change;
 the SHAP ranking of QTL fell to random at high $U$; LFMM2 with $K=1$ held.
-The 200,000-tick runs are running (started 2026-11-11; all 40
-replicates simulated, LOO done for 29 on 2026-11-12).
+At 200,000 ticks: environment $R^2$ 0.56--0.62 and location $R^2$ 0.90 at
+every rate.
 Open: the critical mutation rate of Sakamoto et al.\ (2025, \textit{Genetics})
 for this population structure, to place the four rates relative to it.}
 
@@ -408,8 +465,27 @@ The SNP score is the mean $|\text{SHAP}|$ over all folds, for each output
 ($x$, $y$, environment). We rank SNPs by this raw score; no step uses the
 QTL labels (\cref{sec:corrections}, item~3).
 
+\paragraph{Results at steady state.} Mean LOO $R^2$ over 100 replicates,
+with Table~S2 (10,000 ticks) for comparison:
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Condition & $x$ & environment & Table S2: $x$ & environment \\
+\midrule
+$\sigma_D=0.1$, architectures 1--3 & 0.967--0.968 & 0.815--0.824 & 0.967--0.968 & 0.759--0.787 \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.914 & 0.796 & 0.917 & 0.609 \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.900 & 0.625 & 0.911--0.912 & 0.556--0.561 \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.893 & 0.478 & 0.906 & 0.421 \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.779 & 0.477 & 0.815 & 0.336 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
 \points{R1.2 (what counts as an adaptive allele)}
-\status{Done (package \texttt{ecolocator loo} with \texttt{--fold-start},
+\status{Open: location $R^2$ is 0.01--0.04 lower than Table~S2 at
+$\sigma_D \geq 0.3$, in the 10,000-tick reruns too, so not because of run
+length. Done (package \texttt{ecolocator loo} with \texttt{--fold-start},
 \texttt{--fold-stop}, \texttt{--shap-out}). A pilot showed that 5-fold
 cross-fitted SHAP matches LOO SHAP, and that conditioning SHAP on genotype
 PCs makes the QTL ranking worse.}
@@ -422,6 +498,91 @@ PCs makes the QTL ranking worse.}
 %   shap/mean_abs_shap.tsv.
 
 %======================================================================
+\section{Network design: a polygenic-score unit}
+\label{sec:pgs}
+
+The current network's environment output follows its location route: its
+$R^2$ equals that of the environment read off its own predicted location
+(0.635 against 0.629 on a test replicate), while the phenotype route
+(QTL $\to$ phenotype $\to$ optimum), which is nearly linear in the
+genotypes, goes unused. The revised design (PGS; \cref{fig:pgs}) has three parts: the
+trunk and location head (input dropout, 4 dense layers of 128 ELU units
+with L2 weight decay and dropout); one linear, L2-penalized unit reading
+all SNPs, the score $s = w \cdot g$; and an environment head,
+environment $= s + h(s, \hat{x}, \hat{y})$, with $h$ a small network of
+the score and the predicted location. The score enters the output with a
+fixed coefficient of 1, so its penalty acts on the SNP coefficients and,
+with $h$ constant, the model is ridge regression; the predicted location
+enters the head behind \texttt{stop\_gradient}, so the environment loss
+does not shape the trunk. One network is trained with the joint loss
+(weights 0.5 and 0.5); the score penalty is chosen per fold from 10, 30,
+100, 300 on the environment validation loss.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/EcolocatorARC_pgs.pdf}
+\caption{The PGS network. \textbf{A) Training.} Standardized genotypes
+(dashed units: dropout) feed two routes. The trunk (4 dense layers of 128
+ELU units) predicts location $(x, y)$. A linear, L2-penalized unit reads
+all SNPs directly and gives the polygenic score $s_j$; the correction head
+$h_j$ (16 ELU units, then one linear unit) reads $s_j$ and the predicted
+location, and the environment is $s_j + h_j$. The location enters $h_j$
+through a gradient stop (double bar), so the environment loss updates only
+the score unit and the correction head, and only the location loss trains
+the trunk. The loss is $0.5 \times$ MSE (environment) $+ 0.5 \times$ mean
+Euclidean distance (location). The figure draws one score and correction
+route per environmental covariate (env 1--3); the simulations have one
+covariate. \textbf{B) Prediction.} The trained network predicts location
+and environment from genotypes alone.}
+\label{fig:pgs}
+\end{figure}
+% Figure source: figures/EcolocatorARC_pgs.tex (standalone TikZ; pdflatex).
+
+\paragraph{Benchmark.} Designs are compared by 5-fold cross-fitting with
+folds fixed per replicate (the same folds for every design). Designs were
+chosen on replicates 1--20 of each condition and evaluated on 21--100.
+On the development replicates, two variants gave the same environment
+$R^2$ within 0.001: PGS with the trunk features also in the environment
+head, and an earlier design (C4) whose linear SNP path is added at the
+output next to a deep environment head on the frozen trunk.
+
+\paragraph{Results.} On the 560 test replicates, against the current
+network (its pipeline LOO fit):
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{environment $R^2$} & \multicolumn{2}{c}{location $R^2$ ($x$)} \\
+Condition & PGS & current & PGS & current \\
+\midrule
+$\sigma_D=0.1$, architectures 1--3 & 0.836--0.845 & 0.812--0.821 & 0.969--0.970 & 0.967--0.968 \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.842 & 0.785 & 0.927 & 0.914 \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.714 & 0.621 & 0.916 & 0.900 \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.594 & 0.473 & 0.911 & 0.892 \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.601 & 0.473 & 0.817 & 0.780 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Environment $R^2$ rose by $0.068 \pm 0.002$ (better in all 560
+replicates) and location $R^2$ by $0.013 \pm 0.001$ (92\%). The
+corrected GEA with PGS's predicted locations ranks QTL as well as with the
+current network's ($-0.001 \pm 0.001$ AUC-PR). Over all steady-state
+replicates, with genomic control on SNPs with MAF $\geq 0.05$
+(\cref{sec:calibration}), its inflation factor is lower (2.5--12.2 against
+3.6--24.9) and so is its window-level FDR at $q<0.05$ (0.06--0.18 against
+0.07--0.22), at similar power.
+
+\points{R1.1 (the method as a GEA approach)}
+\status{Benchmark done. Not yet in the \ecolocator package.}
+
+% Code / results:
+%   Pipeline repository, branch feature/netbench: simulations/netbench/
+%   (designs.py: PGS, C4, C4P; bench.py; Snakefile; summarize.py).
+%   Results: talapas /projects/kernlab/adkern/ecolocator_netbench/results/
+%   dev/ (development) and test/ (test).
+
+%======================================================================
 \section{LFMM2}
 \label{sec:lfmm}
 
@@ -430,9 +591,12 @@ We ran LFMM2 \citep{caye_lfmm2_2019} with LEA 3.22.0
 (0/1/2) against the local optimum, for $K = 1$--6, 8, and 10 latent
 factors. The scree plot of the genotype PCA has no clear elbow in these
 simulations, so we keep results for all $K$ and report $K=1$ and $K=5$.
-Sites with a minor-allele count below 2 are not tested. $p$-values are
-calibrated by the genomic inflation factor (\texttt{genomic.control =
-TRUE}). For the overlap with SHAP, LFMM2 hits are sites with
+The latent factors are fitted on all sites with a minor-allele count of at
+least 2. The $p$-values are calibrated by the genomic inflation factor of
+the sites with MAF $\geq 0.05$, the sites we score, and only those sites
+get a $p$-value (\cref{sec:calibration}). With all sites in the factor,
+this gives the $p$-values of \texttt{genomic.control = TRUE}. For the
+overlap with SHAP, LFMM2 hits are sites with
 Benjamini--Hochberg $q < 0.05$ \citep{benjamini_hochberg_1995}.
 
 \points{R1.1, R1.9 (compare with LFMM2)}
@@ -460,7 +624,8 @@ that did not see it (the LOO predictions, \cref{sec:loo}). The predicted
 location stands for population structure; the true location would also
 carry the environment and remove the signal. The $z$-scores
 $\hat{b}/\mathrm{SE}(\hat{b})$ are calibrated by the genomic inflation factor,
-as in LFMM2.
+as in LFMM2. Only SNPs with MAF $\geq 0.05$ are tested, so the factor
+comes from the SNPs we score (\cref{sec:calibration}).
 
 \status{Done. Over 873 replicates of the submitted-style runs, it ranked
 QTL as well as LFMM2 with $K=5$ (mean difference in AUC-PR $-0.001$), and
@@ -473,6 +638,85 @@ Candidate for the main locus-discovery result.}
 %   Outputs per replicate: corrected_gea/results.tsv, summary.tsv.
 %   873-replicate comparison: talapas /projects/kernlab/adkern/
 %     ecolocator_pipeline/audit/corrected_gea.tsv
+
+%======================================================================
+\section{Calibration of the GEA tests}
+\label{sec:calibration}
+
+Population structure inflates LFMM2 and the corrected GEA much more for
+common SNPs than for rare ones. Mean genomic inflation factor (GIF) of the
+corrected GEA (PGS locations; 20 replicates per condition) by MAF class:
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+ & share of SNPs & \multicolumn{3}{c}{GIF} \\
+ & MAF $<0.05$ & MAF $<0.05$ & 0.05--0.2 & 0.2--0.5 \\
+\midrule
+All seven conditions & 0.45--0.60 & 1.4--1.6 & 2.3--11.1 & 3.0--20.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Both tests first took the factor over all SNPs with a
+minor-allele count of at least 2. About half of these SNPs are rare and
+barely inflated, so the factor (1.8--4.2) was too small for the SNPs with
+MAF $\geq 0.05$ that we score, and their $p$-values were anticonservative.
+SNPs more than 50 kb from every QTL had $p<0.001$ at up to 11 times the
+nominal rate, and window-level FDR at $q<0.05$ was 0.19--0.49 for the
+corrected GEA and 0.21--0.64 for LFMM2.
+
+\paragraph{Fix.} The factor now comes from the SNPs we score (setting
+\texttt{gea\_min\_maf} $=0.05$, equal to the MAF threshold of the
+evaluation): the corrected GEA tests only these SNPs, and LFMM2 fits its
+latent factors on all SNPs but calibrates and reports only these. The
+rankings, and so all AUC-PR values, do not change. SNPs far from every QTL
+then have $p<0.001$ at 0--0.2\%, close to the nominal rate.
+
+\paragraph{Other variants tested.} We scored variants of the corrected GEA
+on the finished replicates, chose on replicates 1--20 of each
+steady-state condition, and checked on replicates 21--100.
+Window level, any QTL, $q<0.05$, replicates 1--20 pooled:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Variant & FDR & power & AUC-PR, major QTL \\
+\midrule
+Genomic control, 5 knots (adopted) & 0.109 & 0.335 & 0.709 \\
+Genomic control, 8 knots & 0.087 & 0.331 & 0.707 \\
+Empirical null (Efron) & 0.113 & 0.334 & 0.712 \\
+Genomic control within MAF quintiles & 0.128 & 0.296 & 0.650 \\
+Spatial HAC SE, bandwidth 0.25--1 & 0.02--0.10 & 0.07--0.14 & 0.43--0.67 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item More knots in the location spline lower FDR a little at the same
+  power; on replicates 21--100, from 0.06--0.17 to 0.05--0.13.
+\item Spatial HAC (Conley) standard errors, with a Gaussian kernel on the
+  sampling locations, treat the spatial pattern of a QTL's genotypes as
+  noise and lose most of the power.
+\item Genomic control within MAF classes over-corrects the common classes,
+  where the QTL signal also raises the median.
+\item The WZA on the corrected $p$-values does not help: window AUC-PR
+  (major QTL) 0.12--0.43 against 0.50--0.83 for the corrected GEA, and
+  power about 0.01, as for the WZA on Kendall's $\tau_b$. Its sum over all
+  SNPs of a window dilutes a signal carried by few SNPs.
+\end{itemize}
+
+\points{R1.1, R1.9}
+\status{Fix adopted and all steady-state and polygenicity comparisons
+rerun. Open: whether to adopt 8 knots.}
+
+% Code / results:
+%   Pipeline main f93b817: setting gea_min_maf (config/config.yaml);
+%   workflow/scripts/location_corrected_gea.py (--min-maf),
+%   workflow/scripts/lfmm.R (--min-maf).
+%   Variants: simulations/calibration/gea_calibration.py; results talapas
+%   .../simulations/results/gea_calibration.tsv and gea_calibration_v2.tsv.
+%   Tables before the fix: results/conditions_*/*.before_gc.tsv.
 
 %======================================================================
 \section{WZA and the top-candidate test}
@@ -537,7 +781,7 @@ contributions we report the number of segregating QTL sites, the effective
 number of contributing sites $(\sum|c_i|)^2/\sum c_i^2$, the shares of the
 largest 1 and 5 sites, and the contribution-weighted mean age.
 
-We score every method against three kinds of true positive:
+We score every method against four kinds of true positive:
 \begin{description}
 \item[Any QTL.] The SNP is a QTL site; the window holds one.
 \item[Major QTL.] The fewest QTL sites that together carry 80\% of
@@ -552,6 +796,9 @@ We score every method against three kinds of true positive:
   weakly adapted replicate can have none. Booker et al.\ computed the
   covariance from deme means; here it is from individuals, each with its
   own optimum.
+\item[Near QTL.] The window holds a QTL site or is next to a window that
+  does; a SNP, if its window is such a window. Discoveries caused by LD
+  with a QTL in the neighbouring window then count as true.
 \end{description}
 
 \noindent In the 10,000- and 100,000-tick runs, the major QTL were 8 to 12
@@ -598,13 +845,58 @@ pool the replicates after turning each method's scores into percentile
 ranks within each replicate, because raw scores (mean $|\text{SHAP}|$ above
 all) are on a different scale in every replicate.
 
+\paragraph{Power and FDR.} For every test with $p$-values (LFMM2, the
+corrected GEA, Kendall's $\tau_b$, WZA, top-candidate) we compute
+Benjamini--Hochberg $q$-values within each replicate, over the evaluated
+SNPs (SNP tests) or windows (window tests), and report, at $q < 0.05$, the
+number of hits, power (share of true positives that are hits), and FDR
+(share of hits that are false; 0 without hits). A window is a hit of a
+SNP test if it holds a SNP hit.
+
+\paragraph{Results.} Window level, mean over 100 replicates:
+\begin{itemize}
+\item AUC-PR (major QTL): corrected GEA 0.52--0.84, LFMM2 0.52--0.80
+  (better $K$), Kendall's $\tau_b$ 0.48--0.82, top-candidate 0.51--0.68,
+  WZA 0.12--0.41, SHAP 0.25--0.52.
+\item Corrected GEA minus LFMM2 with the better $K$, paired by replicate:
+  $+0.019$ to $+0.044$ at $\sigma_D = 0.3$ and 0.5, and $-0.012$ to
+  $+0.018$ at $\sigma_D = 0.1$. LFMM2's better $K$ changes with the condition ($K=5$
+  with strong structure, $K=1$ otherwise); the wrong $K$ costs up to 0.15.
+\item At $q<0.05$, with genomic control on the scored SNPs
+  (\cref{sec:calibration}):
+\end{itemize}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & FDR & power & power \\
+Test & (any QTL) & (any QTL) & (major QTL) \\
+\midrule
+Corrected GEA, PGS locations & 0.06--0.18 & 0.10--0.46 & 0.29--0.90 \\
+Corrected GEA, current network's locations & 0.07--0.22 & 0.11--0.43 & 0.30--0.92 \\
+LFMM2, $K=1$ & 0.04--0.10 & 0.07--0.28 & 0.19--0.74 \\
+LFMM2, $K=5$ & 0.04--0.14 & 0.10--0.39 & 0.28--0.65 \\
+Kendall's $\tau_b$ (no correction) & 0.48--0.81 & 0.98--1.00 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{itemize}
+\item The corrected GEA has the most power in every condition; the margin
+  is largest when structure is weak (any QTL, PGS locations 0.30--0.40
+  against 0.16--0.28 for LFMM2). Its FDR is above LFMM2's under the
+  strongest structure ($\sigma_D=0.1$ with architecture 2, 0.18 against
+  0.10--0.14; $\sigma_K=0.3$, 0.15 against 0.07--0.10).
+\item WZA finds 0.07--0.24 windows per replicate and the top-candidate test
+  about one.
+\item Counting windows next to a QTL as true (near QTL) lowers the FDR of
+  the corrected GEA by 0.02--0.05: 23--42\% of its false discoveries are
+  next to a QTL. The rest lie farther away: long-range LD on the single
+  1 Mb chromosome or residual structure.
+\end{itemize}
+
 \points{R1.1, R1.9}
-\status{Done. Preliminary (5 replicates per group; window level; major QTL
-as true positives): at 100,000 ticks, Kendall's $\tau_b$, LFMM2, and the
-location-corrected GEA reach AUC-PR 0.65--0.80; the top-candidate test
-0.64--0.72; WZA 0.36--0.43; SHAP 0.22--0.50. Consistent with the WZA
-preprint's own result that single-SNP tests win when allele frequencies
-are well estimated and the environment is the selective agent.}
+\status{Done for all steady-state replicates. Open: simulations with
+several chromosomes, to separate long-range LD from residual structure in
+the false discoveries.}
 
 % Code / results:
 %   workflow/scripts/compare_rep.py (rule compare): comparison/snps.tsv,
