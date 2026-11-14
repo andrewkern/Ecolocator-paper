@@ -88,6 +88,14 @@ Figure~2 condition) unless stated.
   (\cref{sec:evaluation}).
 \item \textbf{Polygenicity changes locus discovery, not prediction}
   (\cref{sec:polygenicity}).
+\item \textbf{\ecolocator predicts maladaptation better than the genomic
+  offsets, unless structure is strong.} In simulated common gardens with
+  three environmental variables besides the optimum, \ecolocator's offset
+  weights each variable by how much the genotype predicts it beyond
+  location. At $\sigma_D \geq 0.3$ it correlates with the loss of fitness
+  at 0.74--0.83, ahead of the best of LFMM2, RDA, and gradient forest in
+  each garden by 0.08--0.18 (tied at $\sigma_K=0.3$); at $\sigma_D=0.1$
+  LFMM2 with $K=5$ is ahead by 0.16--0.18 (\cref{sec:offsets}).
 \item \textbf{Structure:} mean pairwise F$_{ST}$ 0.16, 0.085, and 0.045 at
   $\sigma_D = 0.1$, 0.3, 0.5; strong selection raises it to 0.25 through a
   smaller population, so the $\sigma_K$ sweep varies structure too
@@ -908,6 +916,181 @@ the false discoveries.}
 %   figures per condition, comparison_curves.tsv, comparison_curves_auc.tsv.
 %   Preliminary tables: poppy ~/ecolocator_pipeline/simulations/results/
 %   equil_compare/
+
+%======================================================================
+\section{Genomic offsets in common gardens}
+\label{sec:offsets}
+
+\ecolocator predicts the environment that an individual's genotype is
+adapted to, so the distance between that prediction and the environment of
+a site (a common garden, or a future climate at the same place) is a
+genomic offset: an estimate of how maladapted the individual would be
+there. We define this offset with a weight for each environmental variable,
+and we test it against the genomic offsets in common use, in simulated
+common gardens where the true loss of fitness is known.
+
+\paragraph{The \ecolocator offset.} For individual $i$ and site $g$,
+\begin{equation*}
+O_{ig} = \Big(\sum_c w_c \big((e_{gc} - \hat{e}_{ic}) / s_c\big)^2\Big)^{1/2},
+\end{equation*}
+where $e_{gc}$ is variable $c$ at the site, $\hat{e}_{ic}$ the value that
+\ecolocator predicts from $i$'s genotype, and $s_c$ the SD of variable $c$
+over the individuals with known locations. The weights $w_c$ separate the variables
+that the genotype predicts beyond its location from those that it predicts
+only through location. Every variable with spatial structure is predictable
+from the predicted location, whether or not it is under selection; a
+variable under selection is also predictable from the polygenic score
+(\cref{sec:pgs}), because the alleles that adapt to it track its value at
+the individual's own location more closely than the predicted location
+does. After the network is fitted, a location route $r_c$ (16 ELU
+units, then one linear unit) learns each variable from the predicted
+location alone. Its training inputs are the predicted locations of the
+training individuals with dropout active (five draws), so that they have
+an error similar to that of predictions for new individuals; the
+validation individuals stop its training. The weight of variable $c$ is
+\begin{equation*}
+w_c = \max\!\big(0,\; R^2(e_c \sim r_c + \hat{e}_c) - R^2(e_c \sim r_c)\big),
+\end{equation*}
+the share of $e_c$ that the prediction explains beyond the route (least
+squares with an intercept). We compute it on out-of-fold predictions of
+all individuals with known locations: in each of 5 folds, the network,
+with the penalty of the main fit, and its route are fitted on the other
+folds and predict the fold. No step uses fitness or phenotypes. In the
+\ecolocator package, \texttt{fit} computes the weights and
+\texttt{offset} computes $O_{ig}$ for a table of sites.
+
+\paragraph{Simulated common gardens.} We used the steady-state replicates
+21--40 of the seven conditions of Fig.~2 (140 replicates) and all 40
+replicates of the polygenicity conditions (\cref{sec:polygenicity}). Each
+replicate has five gardens: the locations of the individuals whose optimum
+is nearest the 5, 25, 50, 75, and 95\% quantiles of the optimum. Every
+sampled individual is moved to every garden. Its fitness there follows the
+\slim model, $W = \exp\!\big(-(z - \theta_g)^2 / (2\sigma_K^2)\big)$, with
+$z$ its phenotype and $\theta_g$ the optimum at the garden; we read $z$
+from the tree sequence, and each individual's optimum in the tree sequence
+matches the samples table.
+
+\paragraph{Environmental variables.} In the simulations only the optimum
+$\theta$ affects fitness. To make every method find it among other
+variables, as with climate data, each replicate gets three variables
+without selection: other maps of the same map set (for replicate $r$, maps
+$r+37$, $r+74$, $r+111$, modulo the 110 maps), read at each individual
+with \slim's own lookup (nearest grid node, first image row at the top
+edge, $\theta = 1 - 2\,\mathrm{grey}/255$). The same lookup reproduces the
+optimum of every individual exactly. These variables have the spatial
+structure and scale of the optimum; their correlation with it is that of
+two maps (median $|r| = 0.17$, 95th percentile 0.43). A second run adds a
+fourth variable without selection that correlates strongly with the
+optimum: $0.8\, z(\theta) + 0.6\, z(m)$, with $z(\cdot)$ standardized over
+the individuals and $m$ another map, rescaled to the mean and SD of
+$\theta$ (correlation with $\theta$ 0.79; 5--95\%: 0.71--0.85). Each
+garden has the values of all variables at its location.
+
+\paragraph{Methods compared.} All methods use all variables.
+\begin{description}
+\item[\ecolocator.] The package network (\cref{sec:pgs}) with every
+  variable as a covariate, 5-fold cross-fitted (each fold with its own
+  penalty search), so every prediction comes from a model that did not see
+  the individual. Each fold also gives the location routes of its
+  individuals, and the weights come from these out-of-fold predictions of
+  all individuals; the offset is as above.
+\item[Environmental distance.] The same distance from the environment of
+  origin, with equal weights.
+\item[LFMM2 genetic gap] \citep{gain_genomic_2023}, LEA 3.22.0
+  (\texttt{genetic.gap}, variables scaled), with $K=1$ and $K=5$ latent
+  factors (\cref{sec:lfmm}); the environment of origin is the new
+  environment and the garden the predicted one.
+\item[RDA offset] \citep{capblancq_rda_2021}, vegan 2.7.5: genotypes on
+  the variables; the adaptive index of an environment on each constrained
+  axis is the scaled environment times the biplot scores of the axis; the
+  offset is the Euclidean distance between the adaptive indices of origin
+  and garden, with each axis weighted by its share of the constrained
+  variance.
+\item[Gradient forest] \citep{ellis_gradient_2012,fitzpatrick_gradient_2015},
+  gradientForest 0.1.37 with extendedForest 1.6.2: allele frequencies of
+  populations (spatial bins of $1\times1$ unit with at least 10
+  individuals), 500 trees, correlation threshold 0.5, maximum level
+  $\lfloor \log_2(0.368\, n_\text{pop}/2) \rfloor$; the offset is the
+  Euclidean distance between the transformed environments of origin and
+  garden, for every individual.
+\end{description}
+\noindent LFMM2, RDA, and gradient forest use the SNPs with MAF
+$\geq 0.05$ that the GEA comparison scores (\cref{sec:evaluation});
+\ecolocator uses all SNPs with a minor-allele count of at least 2.
+
+\paragraph{Scores.} In each garden, the Spearman correlation between
+offset and loss of fitness ($1 - W$) across individuals; and across
+populations, with the means of offset and fitness over the individuals of
+each spatial bin with at least 10 individuals. The true phenotype gives an
+upper bound ($|\theta_g - z|$; correlation 1 across individuals). We
+average over gardens and replicates, and we compare \ecolocator, garden by
+garden, with the best of the four genomic offsets in that garden, which
+favours the genomic offsets.
+
+\paragraph{Results.} Spearman correlation across individuals, mean over
+gardens and replicates, with three variables without selection:
+
+\begin{center}
+\begin{tabular}{lcccccc}
+\toprule
+ & & Env. & \multicolumn{2}{c}{LFMM2 gap} & & Gradient \\
+Condition & \ecolocator & distance & $K=1$ & $K=5$ & RDA & forest \\
+\midrule
+$\sigma_D=0.1$, architectures 1--3 & 0.53--0.57 & 0.44--0.48 & 0.63--0.69 & 0.70--0.73 & 0.54--0.59 & 0.60--0.64 \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.779 & 0.471 & 0.738 & 0.745 & 0.616 & 0.702 \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.789 & 0.422 & 0.654 & 0.597 & 0.596 & 0.665 \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.741 & 0.379 & 0.541 & 0.461 & 0.507 & 0.549 \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.816 & 0.389 & 0.571 & 0.533 & 0.550 & 0.601 \\
+$U = 2\times10^{-4}$ to $2\times10^{-1}$ & 0.77--0.83 & 0.40--0.43 & 0.63--0.65 & 0.50--0.63 & 0.55--0.58 & 0.58--0.60 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item At $\sigma_D \geq 0.3$ and at every polygenicity, \ecolocator's offset
+  is ahead of the best genomic offset of each garden by 0.08--0.18
+  (better in 86--100\% of gardens), except at $\sigma_K = 0.3$, where they
+  tie ($-0.015 \pm 0.012$). Across populations, \ecolocator's correlation
+  is 0.80--0.91, against 0.75--0.82 for the best genomic offset of each
+  condition (at $\sigma_K=0.3$, 0.804 against 0.810).
+\item \ecolocator finds the variable under selection: at $\sigma_D \geq 0.3$
+  the optimum has the largest weight in 90--100\% of replicates (0.08--0.12,
+  against 0.005--0.04 for the variables without selection; median ratio
+  of the optimum's weight to the largest other weight 2.0--9.1).
+\item Under the strongest structure ($\sigma_D = 0.1$) it does not. All
+  variables get weights of 0.08--0.10, the optimum is the largest in
+  20--25\% of replicates, and \ecolocator's offset is behind the best
+  genomic offset of each garden by 0.19--0.21, and behind LFMM2 with $K=5$
+  by 0.16--0.18 (across populations, 0.57--0.60 against 0.79--0.83). With little dispersal, the genotype predicts every variable
+  beyond the predicted location by about the same amount, so the weights
+  cannot separate the optimum from the others.
+\item With the strongly correlated fourth variable, its weight is 0.06--0.09
+  at $\sigma_D \geq 0.3$, near that of the optimum (0.09--0.12): it carries
+  information about the optimum. The optimum still has the largest weight
+  in 80--100\% of replicates, and \ecolocator stays ahead of the best
+  genomic offset by 0.08--0.15 (86--100\% of gardens; a tie at
+  $\sigma_K=0.3$, $-0.011 \pm 0.011$). At $\sigma_D = 0.1$ it is behind by
+  0.10--0.13.
+\end{itemize}
+
+\points{R1.1, R1.4 (compare with genomic offsets, e.g.\ gradient forest;
+predict maladaptation), R2.3 (show how maladaptation would be predicted)}
+\status{Done for the simulations (180 replicates, two runs). The weights
+and \texttt{offset} are in the \ecolocator package on a branch, not yet
+reviewed. Open: a figure; the \dfir seed-zone analysis with this offset
+(R1.4, R1.6), which needs climate projections and Jordan's data.}
+
+% Code / results:
+%   Pipeline branch feature/offsets-location-route, simulations/offsets_multi/
+%   (Snakefile, config.yaml, config_corr.yaml, README.md, summarize.py) and
+%   workflow/scripts/env_layers.py, ecolocator_cv.py, offsets_eval.py,
+%   offsets_genomic.R, phenotypes.py.
+%   Package: kr-colab/ecolocator branch feature/location-route
+%   (EcoLocator.fit weight_folds, env_weights_, offset; utils.env_weights).
+%   Results: talapas .../ecolocator_pipeline_main/simulations/results/
+%   offsets_multi/ and offsets_multi_corr/ (offsets_multi_eval_all.tsv,
+%   ecolocator_weights_all.tsv, ecolocator_metrics_all.tsv); tables from
+%   offsets_multi/summarize.py.
 
 %======================================================================
 \section{Corrections to the submitted Methods}
