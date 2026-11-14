@@ -1028,7 +1028,8 @@ garden, with the best of the four genomic offsets in that garden, which
 favours the genomic offsets.
 
 \paragraph{Results.} Spearman correlation across individuals, mean over
-gardens and replicates, with three variables without selection:
+gardens and replicates, with three variables without selection
+(\cref{fig:offsets}):
 
 \begin{center}
 \begin{tabular}{lcccccc}
@@ -1073,11 +1074,37 @@ $U = 2\times10^{-4}$ to $2\times10^{-1}$ & 0.77--0.83 & 0.40--0.43 & 0.63--0.65 
   0.10--0.13.
 \end{itemize}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/offsets_gardens.pdf}
+\caption{Genomic offsets in simulated common gardens. \textbf{A)} Spearman
+correlation between offset and loss of fitness across individuals, mean
+over the five gardens and the replicates of each condition (20 per
+condition of Fig.~2, 10 per polygenicity $U$), with three environmental
+variables without selection. \ecolocator (blue) weights each variable by
+how much the genotype predicts it beyond location; the genomic offsets
+(grey) are the LFMM2 genetic gap, RDA, and gradient forest;
+environmental distance (open) uses the environment of origin. SE over
+replicates: at most 0.03 for \ecolocator and 0.06 for the genomic offsets.
+\textbf{B)} \ecolocator minus the best of the four genomic offsets in
+each garden, mean over replicates with 95\% intervals; filled: three
+variables without selection; open: a fourth variable without selection,
+correlated with the optimum ($r \approx 0.8$). \textbf{C)} \ecolocator's
+cross-fitted weights, one point per replicate and variable; bars: means.
+Blue: the optimum; grey: the three variables without selection; orange:
+the correlated variable of the second run. Groups on the $x$ axis: the
+conditions of Fig.~2 (GA: genetic architecture) and the polygenicity
+conditions.}
+\label{fig:offsets}
+\end{figure}
+% Figure: pipeline simulations/offsets_multi/plot_figure.py (--independent
+% results/offsets_multi --correlated results/offsets_multi_corr).
+
 \points{R1.1, R1.4 (compare with genomic offsets, e.g.\ gradient forest;
 predict maladaptation), R2.3 (show how maladaptation would be predicted)}
 \status{Done for the simulations (180 replicates, two runs). The weights
 and \texttt{offset} are in the \ecolocator package on a branch, not yet
-reviewed. Open: a figure; the \dfir seed-zone analysis with this offset
+reviewed. Open: the \dfir seed-zone analysis with this offset
 (R1.4, R1.6), which needs climate projections and Jordan's data.}
 
 % Code / results:
