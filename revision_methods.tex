@@ -88,19 +88,18 @@ Figure~2 condition) unless stated.
   (\cref{sec:evaluation}).
 \item \textbf{Polygenicity changes locus discovery, not prediction}
   (\cref{sec:polygenicity}).
-\item \textbf{Genomic offsets: \ecolocator matches or beats the best
-  genomic offset unless structure is strong or selection is strong.} In
-  simulated common gardens with three environmental variables besides the
-  optimum (held-out replicates, analysis plan fixed before scoring),
-  \ecolocator's offset weights each variable by how much the genotype
-  predicts it beyond location. Across populations, against the best of
-  LFMM2, RDA, and gradient forest in each garden, it is ahead at
-  $\sigma_K=0.7$ ($+0.13$) and $\sigma_D=0.5$ ($+0.08$), ties at
-  $\sigma_K=0.5$, on smoother maps, and at high polygenicity, and is
-  behind at $\sigma_K=0.3$ ($-0.10$), at low polygenicity ($-0.05$), and
-  at $\sigma_D=0.1$ ($-0.26$ to $-0.29$). It also ranks individuals within
-  a place, which offsets of the environment of origin cannot
-  (\cref{sec:offsets}).
+\item \textbf{Genomic offsets: \ecolocator matches or beats gradient
+  forest and RDA unless structure is strong.} In simulated common gardens
+  with three environmental variables besides the optimum (held-out
+  replicates), \ecolocator's offset weights each variable by how much the
+  genotype predicts it beyond location. Across populations, against the
+  better of gradient forest and RDA in each garden, it is ahead at
+  $\sigma_D \geq 0.3$ with $\sigma_K \geq 0.5$ ($+0.07$ to $+0.17$), ties
+  on smoother maps, at $\sigma_K=0.3$, and at most polygenicity rates, and
+  is behind at $\sigma_D=0.1$ ($-0.15$ to $-0.17$). The LFMM2 genetic gap
+  is better than \ecolocator under strong structure or strong selection.
+  \ecolocator also ranks individuals within a place, which offsets of the
+  environment of origin cannot (\cref{sec:offsets}).
 \item \textbf{Structure:} mean pairwise F$_{ST}$ 0.16, 0.085, and 0.045 at
   $\sigma_D = 0.1$, 0.3, 0.5; strong selection raises it to 0.25 through a
   smaller population, so the $\sigma_K$ sweep varies structure too
@@ -1023,99 +1022,113 @@ each variable.
   \texttt{fit} runs on the rest (default penalty search, location route,
   weights from 5 inner folds), and \texttt{offset} gives the hidden
   individuals' offsets to every garden. Every offset comes from a model
-  that saw neither the individual nor its environment.
+  that saw neither the individual nor its environment, and it depends on
+  the individual's own genotype.
 \item[Environmental distance.] The Euclidean distance between the
   standardized environments of origin and garden, with equal weights.
-\item[LFMM2 genetic gap] \citep{gain_genomic_2023}, LEA 3.22.0
-  (\texttt{genetic.gap}, variables scaled), with $K=1$ and $K=5$ latent
-  factors (\cref{sec:lfmm}); the environment of origin is the new
-  environment and the garden the predicted one. $K$ is not chosen by a
-  criterion; we report both.
-\item[RDA offset] \citep{capblancq_rda_2021}, vegan 2.7.5: genotypes on
-  the variables; the adaptive index of an environment on each constrained
-  axis is the scaled environment times the biplot scores of the axis; as
-  in the authors' \texttt{genomic\_offset()}, each index is multiplied by
-  its axis's share of the constrained variance, and the offset is the
-  Euclidean distance between the indices of origin and garden (all
-  constrained axes; no candidate-SNP step).
 \item[Gradient forest] \citep{ellis_gradient_2012,fitzpatrick_gradient_2015},
-  gradientForest 0.1.37 with extendedForest 1.6.2: allele frequencies of
-  populations (spatial bins of $1\times1$ unit with at least 10
-  individuals, about 25 per replicate), 500 trees, correlation threshold
-  0.5, maximum level $\lfloor \log_2(0.368\, n_\text{pop}/2) \rfloor$; the
-  offset is the Euclidean distance between the transformed environments of
-  origin and garden, for every individual.
+  gradientForest 0.1.37 with extendedForest 1.6.2, fitted on the allele
+  frequencies of populations (spatial bins of $1\times1$ unit with at least
+  10 individuals, about 25 per replicate) against their mean environments:
+  500 trees, correlation threshold 0.5, maximum level
+  $\lfloor \log_2(0.368\, n_\text{pop}/2) \rfloor$. The fitted turnover
+  functions transform an environment; the offset is the Euclidean distance
+  between the transformed environments of origin and garden.
+\item[RDA offset] \citep{capblancq_rda_2021}, vegan 2.7.5, fitted on the
+  individual genotypes against the variables. The adaptive index of an
+  environment on each constrained axis is the scaled environment times the
+  biplot scores of the axis; as in the authors' \texttt{genomic\_offset()},
+  each index is multiplied by its axis's share of the constrained variance,
+  and the offset is the Euclidean distance between the indices of origin
+  and garden (all constrained axes; no candidate-SNP step).
+\item[LFMM2 genetic gap] \citep{gain_genomic_2023}, the newer geometric
+  offset of LEA 3.22.0 (\texttt{genetic.gap}, variables scaled), fitted on
+  the individual genotypes with $K=1$ and $K=5$ latent factors
+  (\cref{sec:lfmm}); the environment of origin is the new environment and
+  the garden the predicted one. $K$ is not chosen by a criterion; we
+  report both.
 \end{description}
-\noindent LFMM2, RDA, and gradient forest use the SNPs with MAF
-$\geq 0.05$; \ecolocator uses all SNPs with a minor-allele count of at
-least 2. We did not tune the competitors on the held-out replicates. On
-the development replicates, alternative settings (LFMM2 on all SNPs; RDA
-conditioned on location or fitted on candidate loci) reduced
-\ecolocator's lead across individuals by at most 0.02. In one replicate of
-the second run, vegan's RDA failed in LAPACK's SVD; there the comparison
-uses the other three genomic offsets.
+\noindent The three genomic offsets are fitted on genotypes, but each
+offset is a function of the environments of origin and garden only: it is
+evaluated at the environment of each individual's place of origin, so all
+individuals from one place get the same offset, and no genomic offset
+predicts from an individual's own genotype. Gradient forest and RDA use the
+SNPs with MAF $\geq 0.05$, as does the genetic gap; \ecolocator uses all
+SNPs with a minor-allele count of at least 2. We did not tune the
+competitors on the held-out replicates. On the development replicates,
+alternative settings (LFMM2 on all SNPs; RDA conditioned on location or
+fitted on candidate loci) reduced \ecolocator's lead across individuals by
+at most 0.02. In one replicate of the second run, vegan's RDA failed in
+LAPACK's SVD; there the comparisons use the other genomic offsets.
 
 \paragraph{Scores.} In each garden we compute the Spearman correlation
 between offset and loss of fitness ($1 - W$) across populations, with the
 means of offset and fitness over the individuals of each spatial bin with
-at least 10 individuals, and across individuals. For the comparison we
-take, in each garden, \ecolocator minus the best of the four genomic
-offsets in that garden (a choice that no user could make), average over
+at least 10 individuals, and across individuals. The population scale is
+the primary comparison, because genomic offsets are made for populations.
+The individual scale also rewards ranking individuals within a place,
+which the genomic offsets, by construction, do not attempt.
+
+For each garden we take \ecolocator minus the better of gradient forest
+and RDA in that garden (the genomic offsets in common use), average over
 the five gardens of a replicate, and report the mean over replicates, its
 SE over replicates, and the share of replicates in which \ecolocator is
-ahead. The population scale is the primary comparison, because offsets are
-used for populations. The individual scale also rewards ranking
-individuals within a place: the genomic offsets and environmental distance
-give every individual of one map cell the same offset, while \ecolocator's
-prediction differs between individuals, so this scale measures a use that
-offsets of the environment of origin do not attempt.
+ahead. Taking the better of the two in each garden is a choice that no
+user could make. We also report the comparison with the best of all four
+genomic offsets (with the LFMM2 genetic gap), which was the comparator of
+the analysis plan; we added the comparison with gradient forest and RDA
+after the held-out results were in.
 
 \paragraph{Results.} The table gives the Spearman correlation across
 populations (mean over gardens and replicates), and the difference between
-\ecolocator and the best genomic offset of each garden at both scales
-($\pm$ SE over replicates), with three variables without selection
-(\cref{fig:offsets}).
+\ecolocator and the better of gradient forest and RDA in each garden at
+both scales ($\pm$ SE over replicates), with three variables without
+selection (\cref{fig:offsets}). The last column is the difference from the
+best of all four genomic offsets, across populations.
 
 \begin{center}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccccc}
+\begin{tabular}{lccccccccc}
 \toprule
- & & Env. & \multicolumn{2}{c}{LFMM2 gap} & & Grad. & \multicolumn{2}{c}{\ecolocator $-$ best} \\
-Condition & \ecolocator & dist. & $K=1$ & $K=5$ & RDA & forest & populations & individuals \\
+ & & Env. & Grad. & & \multicolumn{2}{c}{LFMM2 gap} & \multicolumn{2}{c}{\ecolocator $-$ GF, RDA} & \ecolocator $-$ \\
+Condition & \ecolocator & dist. & forest & RDA & $K=1$ & $K=5$ & populations & individuals & all four (pop.) \\
 \midrule
-$\sigma_D=0.1$, GA 1--3 & 0.57--0.61 & 0.53--0.56 & 0.75--0.78 & 0.82--0.84 & 0.62--0.67 & 0.65--0.71 & $-0.26$ to $-0.29$ & $-0.20$ to $-0.23$ \\
-$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.779 & 0.533 & 0.826 & 0.802 & 0.707 & 0.735 & $-0.103 \pm 0.029$ & $-0.078 \pm 0.025$ \\
-$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.848 & 0.522 & 0.768 & 0.720 & 0.691 & 0.689 & $+0.017 \pm 0.020$ & $+0.058 \pm 0.021$ \\
-$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.894 & 0.503 & 0.689 & 0.635 & 0.654 & 0.654 & $+0.130 \pm 0.029$ & $+0.174 \pm 0.022$ \\
-$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.898 & 0.498 & 0.732 & 0.642 & 0.677 & 0.710 & $+0.081 \pm 0.026$ & $+0.131 \pm 0.017$ \\
-$H=0.5$ & 0.856 & 0.561 & 0.827 & 0.726 & 0.757 & 0.815 & $-0.019 \pm 0.023$ & $+0.034 \pm 0.023$ \\
-$H=1$ & 0.868 & 0.571 & 0.771 & 0.713 & 0.716 & 0.810 & $+0.016 \pm 0.028$ & $+0.028 \pm 0.023$ \\
-$U=2\times10^{-4}$ & 0.828 & 0.535 & 0.832 & 0.765 & 0.789 & 0.845 & $-0.056 \pm 0.013$ & $-0.014 \pm 0.014$ \\
-$U=2\times10^{-3}$ & 0.836 & 0.550 & 0.846 & 0.762 & 0.790 & 0.813 & $-0.046 \pm 0.022$ & $-0.018 \pm 0.023$ \\
-$U=2\times10^{-2}$ & 0.885 & 0.525 & 0.825 & 0.739 & 0.802 & 0.842 & $-0.004 \pm 0.021$ & $+0.013 \pm 0.017$ \\
-$U=2\times10^{-1}$ & 0.912 & 0.553 & 0.856 & 0.782 & 0.797 & 0.861 & $+0.009 \pm 0.017$ & $+0.066 \pm 0.016$ \\
+$\sigma_D=0.1$, GA 1--3 & 0.57--0.61 & 0.53--0.56 & 0.65--0.71 & 0.62--0.67 & 0.75--0.78 & 0.82--0.84 & $-0.15$ to $-0.17$ & $-0.10$ to $-0.12$ & $-0.26$ to $-0.29$ \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.779 & 0.533 & 0.735 & 0.707 & 0.826 & 0.802 & $-0.017 \pm 0.041$ & $+0.007 \pm 0.038$ & $-0.103$ \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.848 & 0.522 & 0.689 & 0.691 & 0.768 & 0.720 & $+0.074 \pm 0.031$ & $+0.108 \pm 0.030$ & $+0.017$ \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.894 & 0.503 & 0.654 & 0.654 & 0.689 & 0.635 & $+0.174 \pm 0.038$ & $+0.204 \pm 0.027$ & $+0.130$ \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.898 & 0.498 & 0.710 & 0.677 & 0.732 & 0.642 & $+0.136 \pm 0.033$ & $+0.172 \pm 0.023$ & $+0.081$ \\
+$H=0.5$ & 0.856 & 0.561 & 0.815 & 0.757 & 0.827 & 0.726 & $+0.006 \pm 0.026$ & $+0.052 \pm 0.024$ & $-0.019$ \\
+$H=1$ & 0.868 & 0.571 & 0.810 & 0.716 & 0.771 & 0.713 & $+0.032 \pm 0.031$ & $+0.041 \pm 0.025$ & $+0.016$ \\
+$U=2\times10^{-4}$ & 0.828 & 0.535 & 0.845 & 0.789 & 0.832 & 0.765 & $-0.036 \pm 0.015$ & $+0.000 \pm 0.013$ & $-0.056$ \\
+$U=2\times10^{-3}$ & 0.836 & 0.550 & 0.813 & 0.790 & 0.846 & 0.762 & $-0.013 \pm 0.031$ & $+0.007 \pm 0.027$ & $-0.046$ \\
+$U=2\times10^{-2}$ & 0.885 & 0.525 & 0.842 & 0.802 & 0.825 & 0.739 & $+0.021 \pm 0.023$ & $+0.031 \pm 0.020$ & $-0.004$ \\
+$U=2\times10^{-1}$ & 0.912 & 0.553 & 0.861 & 0.797 & 0.856 & 0.782 & $+0.036 \pm 0.018$ & $+0.089 \pm 0.017$ & $+0.009$ \\
 \bottomrule
 \end{tabular}}
 \end{center}
 
 \begin{itemize}
-\item \textbf{Populations.} Against the best genomic offset of each
-  garden, \ecolocator is ahead where dispersal is high relative to the
-  strength of selection ($\sigma_K=0.7$: $+0.13$, ahead in 90\% of
-  replicates; $\sigma_D=0.5$: $+0.08$, 80\%). It ties at
-  $\sigma_D=0.3$, $\sigma_K=0.5$, on the smoother maps, and at the two
-  highest polygenicity rates, and it is behind at $\sigma_K=0.3$
-  ($-0.10$), at the two lowest polygenicity rates ($-0.05$ to $-0.06$),
-  and under the strongest structure ($\sigma_D=0.1$; $-0.26$ to $-0.29$,
-  where LFMM2 with $K=5$ is best). Each genomic offset alone has a lower
-  mean correlation than \ecolocator in 7 of the 13 conditions; which
-  genomic offset is best changes with the condition and the garden.
+\item \textbf{Populations, against gradient forest and RDA.} \ecolocator
+  is ahead at $\sigma_D=0.3$ with $\sigma_K=0.5$ ($+0.07$; ahead in 60\%
+  of replicates) and $\sigma_K=0.7$ ($+0.17$; 90\%), and at
+  $\sigma_D=0.5$ ($+0.14$; 90\%). It ties at $\sigma_K=0.3$, on the
+  smoother maps, and at the polygenicity rates, except the lowest, where it
+  is slightly behind ($-0.04 \pm 0.02$). Under the strongest structure
+  ($\sigma_D=0.1$) it is behind by 0.15--0.17.
+\item \textbf{Populations, against the LFMM2 genetic gap.} The genetic gap
+  corrects for structure with latent factors, and it is the best genomic
+  offset where structure is strong or selection is strong. Against the best
+  of all four, \ecolocator is behind at $\sigma_D=0.1$ ($-0.26$ to
+  $-0.29$), at $\sigma_K=0.3$ ($-0.10$), and at the two lowest
+  polygenicity rates ($-0.05$ to $-0.06$); it is still ahead at
+  $\sigma_K=0.7$ ($+0.13$) and $\sigma_D=0.5$ ($+0.08$).
 \item \textbf{Individuals.} \ecolocator ranks individuals within a place.
-  It is ahead at $\sigma_K \geq 0.5$ with $\sigma_D \geq 0.3$ ($+0.06$ to
-  $+0.17$; ahead in 65--100\% of replicates) and at the highest
-  polygenicity rate ($+0.07$); it ties on the smoother maps and at the
-  other polygenicity rates; it is behind at $\sigma_K=0.3$ ($-0.08$) and
-  at $\sigma_D=0.1$ ($-0.20$ to $-0.23$).
+  Against gradient forest and RDA it is ahead at $\sigma_D \geq 0.3$ with
+  $\sigma_K \geq 0.5$ ($+0.11$ to $+0.20$), on the smoother maps ($+0.04$
+  to $+0.05$), and at the highest polygenicity rate ($+0.09$); it ties at
+  $\sigma_K=0.3$ and at the other polygenicity rates, and it is behind at
+  $\sigma_D=0.1$ ($-0.10$ to $-0.12$).
 \item \textbf{Which variable matters.} The weights find the optimum when
   dispersal is not limiting: at $\sigma_D \geq 0.3$ it has the largest
   weight in 78--100\% of the fold models on the rough maps and in 90--100\%
@@ -1130,10 +1143,10 @@ $U=2\times10^{-1}$ & 0.912 & 0.553 & 0.856 & 0.782 & 0.797 & 0.861 & $+0.009 \pm
 \item \textbf{A correlated variable.} With the fourth variable
   ($r \approx 0.8$ with the optimum), its weight is 0.07--0.09 at
   $\sigma_D \geq 0.3$, near the optimum's (0.09--0.13), and the optimum is
-  the largest in 71--92\% of fold models. The comparison is much as above:
-  across populations $-0.08$ ($\sigma_K=0.3$), $+0.01$
-  ($\sigma_K=0.5$), $+0.08$ ($\sigma_K=0.7$), and $+0.05$
-  ($\sigma_D=0.5$); $-0.17$ to $-0.19$ at $\sigma_D=0.1$.
+  the largest in 71--92\% of fold models. Against gradient forest and RDA
+  across populations, \ecolocator is at $-0.01$ ($\sigma_K=0.3$), $+0.06$
+  ($\sigma_K=0.5$), $+0.11$ ($\sigma_K=0.7$), and $+0.09$
+  ($\sigma_D=0.5$), and at $-0.09$ to $-0.12$ at $\sigma_D=0.1$.
 \end{itemize}
 
 \begin{figure}[htbp]
@@ -1147,8 +1160,8 @@ polygenicity rate $U$), with three environmental variables without
 selection. \ecolocator (blue) weights each variable by how much the
 genotype predicts it beyond location; the genomic offsets (grey) are the
 LFMM2 genetic gap, RDA, and gradient forest; environmental distance (open)
-uses the environment of origin. \textbf{C)} \ecolocator minus the best of
-the four genomic offsets in each garden, mean over replicates with 95\%
+uses the environment of origin. \textbf{C)} \ecolocator minus the better
+of gradient forest and RDA in each garden, mean over replicates with 95\%
 intervals, across populations (filled) and individuals (open).
 \textbf{D)} Covariate weights of \ecolocator's fold models, one point per
 fold model and variable; bars: means. Blue: the optimum; grey: the three
