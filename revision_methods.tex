@@ -88,18 +88,18 @@ Figure~2 condition) unless stated.
   (\cref{sec:evaluation}).
 \item \textbf{Polygenicity changes locus discovery, not prediction}
   (\cref{sec:polygenicity}).
-\item \textbf{Genomic offsets: \ecolocator matches or beats gradient
-  forest and RDA unless structure is strong.} In simulated common gardens
-  with three environmental variables besides the optimum (held-out
-  replicates), \ecolocator's offset weights each variable by how much the
-  genotype predicts it beyond location. Across populations, against the
-  better of gradient forest and RDA in each garden, it is ahead at
-  $\sigma_D \geq 0.3$ with $\sigma_K \geq 0.5$ ($+0.07$ to $+0.17$), ties
-  on smoother maps, at $\sigma_K=0.3$, and at most polygenicity rates, and
-  is behind at $\sigma_D=0.1$ ($-0.15$ to $-0.17$). The LFMM2 genetic gap
-  is better than \ecolocator under strong structure or strong selection.
-  \ecolocator also ranks individuals within a place, which offsets of the
-  environment of origin cannot (\cref{sec:offsets}).
+\item \textbf{Genomic offsets: \ecolocator predicts maladaptation better
+  than gradient forest and RDA, and as well under strong structure.} In
+  simulated common gardens with three environmental variables besides the
+  optimum (held-out replicates, analysis plan fixed before scoring),
+  \ecolocator's offset weights each variable by how much the genotype
+  predicts it beyond location, divided by its prediction error. Across
+  populations, against the better of gradient forest and RDA in each
+  garden, it is ahead by $+0.04$ to $+0.15$ at $\sigma_D \geq 0.3$, on
+  smoother maps, and at every polygenicity rate, and about even at
+  $\sigma_D=0.1$, where the LFMM2 genetic gap ($K=5$) is ahead by
+  0.09--0.11. It also ranks individuals within a place, which offsets of
+  the environment of origin cannot (\cref{sec:offsets}).
 \item \textbf{Structure:} mean pairwise F$_{ST}$ 0.16, 0.085, and 0.045 at
   $\sigma_D = 0.1$, 0.3, 0.5; strong selection raises it to 0.25 through a
   smaller population, so the $\sigma_K$ sweep varies structure too
@@ -935,56 +935,66 @@ common gardens where the true loss of fitness is known.
 
 \paragraph{The \ecolocator offset.} For individual $i$ and site $g$,
 \begin{equation*}
-O_{ig} = \Big(\sum_c w_c \big(z_{gc} - \hat{z}_{ic}\big)^2\Big)^{1/2},
+O_{ig} = \Big(\sum_c \frac{w_c}{m_c} \big(z_{gc} - \hat{z}_{ic}\big)^2\Big)^{1/2},
 \end{equation*}
 where $z_{gc}$ is variable $c$ at the site and $\hat{z}_{ic}$ the value
 that \ecolocator predicts from $i$'s genotype, both in the normalized units
 of the fit (centred and scaled by the mean and SD over the training
-individuals). The weights $w_c$ separate the variables that the genotype
-predicts beyond its location from those that it predicts only through
-location. Every variable with spatial structure is predictable from the
-predicted location, whether or not it is under selection; a variable under
-selection is also predictable from the polygenic score (\cref{sec:pgs}),
-because the alleles that adapt to it track its value at the individual's
-own location more closely than the predicted location does. After the
-network is fitted, a location route $r_c$ (16 ELU units, then one linear
-unit) learns each variable from the predicted location alone. Its training
-inputs are the predicted locations of the training individuals with
-dropout active (five draws), so that they have an error similar to that of
-predictions for new individuals; the validation individuals stop its
-training. The weight of variable $c$ is
-\begin{equation*}
-w_c = \max\!\big(0,\; R^2(e_c \sim r_c + \hat{e}_c) - R^2(e_c \sim r_c)\big),
-\end{equation*}
-the share of $e_c$ that the prediction explains beyond the route (least
-squares with an intercept), on out-of-fold predictions of all training
-individuals: in each of 5 folds, the network (with the penalty of the main
-fit) and its route are fitted on the other folds and predict the fold. No
-step uses fitness or phenotypes. In the \ecolocator package,
-\texttt{fit} computes the weights (\texttt{weight\_folds}, default 5) and
-\texttt{offset} computes $O_{ig}$ for a table of sites.
-
-\paragraph{Development and held-out replicates.} We developed the
-weighting on steady-state replicates 21--40 of the conditions of Fig.~2 and
-on polygenicity replicates 1--10 (the network design was chosen on
-replicates 1--20; \cref{sec:pgs}). Before any of the replicates below was
-scored, we committed an analysis plan to the pipeline repository that fixes
-the replicates, the one \ecolocator method, the competitors and their
-settings, the scores, and our expectations. All results here come from
-these held-out replicates:
+individuals). The two factors of each variable's weight come from
+cross-fitted predictions of all training individuals: in each of 5 folds,
+the network (with the penalty of the main fit) and a location route are
+fitted on the other folds and predict the fold.
 \begin{itemize}
-\item steady-state replicates 41--60 of the seven conditions of Fig.~2
+\item $w_c$ separates the variables that the genotype predicts beyond its
+  location from those that it predicts only through location. Every
+  variable with spatial structure is predictable from the predicted
+  location, whether or not it is under selection; a variable under
+  selection is also predictable from the polygenic score (\cref{sec:pgs}),
+  because the alleles that adapt to it track its value at the individual's
+  own location more closely than the predicted location does. After the
+  network is fitted, a location route $r_c$ (16 ELU units, then one linear
+  unit) learns each variable from the predicted location alone; its
+  training inputs are the predicted locations of the training individuals
+  with dropout active (five draws), so that they have an error similar to
+  that of predictions for new individuals. Then
+  $w_c = \max\!\big(0,\; R^2(e_c \sim r_c + \hat{e}_c) - R^2(e_c \sim r_c)\big)$,
+  by least squares with an intercept: the share of $e_c$ that the
+  prediction explains beyond the route.
+\item $m_c$ is the mean squared error of the prediction of $c$, so a
+  variable that \ecolocator predicts poorly counts less. With strong
+  population structure, every variable gains about the same share beyond
+  the predicted location, but the variable under selection is predicted
+  much better than the others; $m_c$ separates them.
+\end{itemize}
+No step uses fitness or phenotypes. In the \ecolocator package,
+\texttt{fit} computes $w_c$ and $m_c$ (attributes
+\texttt{env\_weights\_} and \texttt{env\_mse\_}; the number of folds is
+the argument \texttt{weight\_folds}, default 5), and \texttt{offset}
+computes $O_{ig}$ for a table of sites.
+
+\paragraph{Development and held-out replicates.} We developed the offset on
+development replicates: steady-state replicates 21--40 of the conditions
+of Fig.~2 and polygenicity replicates 1--10 (the network design was chosen
+on replicates 1--20; \cref{sec:pgs}). The division by $m_c$ came from a
+screen of variants on these replicates, after a first held-out evaluation
+of the offset without it. The results below come from a second set of
+held-out replicates, scored under an analysis plan that we committed to the
+pipeline repository before scoring; the plan fixes the replicates, the one
+\ecolocator method, the competitors and their settings, the scores, and our
+expectations:
+\begin{itemize}
+\item steady-state replicates 61--80 of the seven conditions of Fig.~2
   (140 replicates);
 \item two conditions with smoother maps ($\sigma_D=0.3$, $\sigma_K=0.5$;
   midpoint displacement with Hurst exponent $H=0.5$ and $H=1$ instead of
-  0), 20 new replicates each;
-\item the four polygenicity rates of \cref{sec:polygenicity}, 10 new
-  replicates each (new seeds; replicates 11--20, so other maps than the
-  development replicates).
+  0), 20 replicates each;
+\item the four polygenicity rates of \cref{sec:polygenicity}, 10 replicates
+  each.
 \end{itemize}
-We left out a map set of planar gradients: its maps differ only in the
-direction of the gradient, so other maps of the set are near-copies of the
-optimum (median $|r| = 0.77$).
+The smooth-map and polygenicity replicates are new simulations with new
+seeds and maps. We left out a map set of planar gradients: its maps differ
+only in the direction of the gradient, so other maps of the set are
+near-copies of the optimum (median $|r| = 0.77$).
 
 \paragraph{Simulated common gardens.} Each replicate has five gardens: the
 locations of the individuals whose optimum is nearest the 5, 25, 50, 75,
@@ -1005,22 +1015,21 @@ edge, $\theta = 1 - 2\,\mathrm{grey}/255$). The same lookup reproduces the
 optimum of every individual exactly. These variables have the spatial
 structure and scale of the optimum; their correlation with it is that of
 two maps (median $|r|$ 0.14, 0.18, and 0.27 for $H = 0$, 0.5, and 1; 95th
-percentiles 0.37, 0.47, 0.61). A second run on the steady-state held-out
-replicates adds a fourth variable without selection that correlates
-strongly with the optimum: $0.8\, z(\theta) + 0.6\, z(m)$, with
-$z(\cdot)$ standardized over the individuals and $m$ another map, rescaled
-to the mean and SD of $\theta$ (correlation with $\theta$ about 0.8). Each
-garden has the values of all variables at its location. The maps are
-$8\times8$ grids, so a replicate has only about 50--60 distinct values of
-each variable.
+percentiles 0.37, 0.47, 0.61). A second run on the steady-state replicates
+adds a fourth variable without selection that correlates strongly with the
+optimum: $0.8\, z(\theta) + 0.6\, z(m)$, with $z(\cdot)$ standardized over
+the individuals and $m$ another map, rescaled to the mean and SD of
+$\theta$ (correlation with $\theta$ about 0.8). Each garden has the values
+of all variables at its location. The maps are $8\times8$ grids, so a
+replicate has only about 50--60 distinct values of each variable.
 
 \paragraph{Methods compared.} All methods use all variables.
 \begin{description}
-\item[\ecolocator] (package commit \texttt{5c9dc73}), as a user runs it:
+\item[\ecolocator] (package commit \texttt{cd22e58}), as a user runs it:
   the individuals are split into 5 outer folds; for each fold, the
   coordinates and environmental variables of its individuals are hidden,
   \texttt{fit} runs on the rest (default penalty search, location route,
-  weights from 5 inner folds), and \texttt{offset} gives the hidden
+  $w_c$ and $m_c$ from 5 inner folds), and \texttt{offset} gives the hidden
   individuals' offsets to every garden. Every offset comes from a model
   that saw neither the individual nor its environment, and it depends on
   the individual's own genotype.
@@ -1052,14 +1061,12 @@ each variable.
 offset is a function of the environments of origin and garden only: it is
 evaluated at the environment of each individual's place of origin, so all
 individuals from one place get the same offset, and no genomic offset
-predicts from an individual's own genotype. Gradient forest and RDA use the
-SNPs with MAF $\geq 0.05$, as does the genetic gap; \ecolocator uses all
-SNPs with a minor-allele count of at least 2. We did not tune the
-competitors on the held-out replicates. On the development replicates,
-alternative settings (LFMM2 on all SNPs; RDA conditioned on location or
-fitted on candidate loci) reduced \ecolocator's lead across individuals by
-at most 0.02. In one replicate of the second run, vegan's RDA failed in
-LAPACK's SVD; there the comparisons use the other genomic offsets.
+predicts from an individual's own genotype. The genomic offsets use the
+SNPs with MAF $\geq 0.05$; \ecolocator uses all SNPs with a minor-allele
+count of at least 2. We did not tune the competitors on the held-out
+replicates. On the development replicates, alternative settings (LFMM2 on
+all SNPs; RDA conditioned on location or fitted on candidate loci) changed
+their comparison with \ecolocator by at most 0.02.
 
 \paragraph{Scores.} In each garden we compute the Spearman correlation
 between offset and loss of fitness ($1 - W$) across populations, with the
@@ -1075,9 +1082,7 @@ the five gardens of a replicate, and report the mean over replicates, its
 SE over replicates, and the share of replicates in which \ecolocator is
 ahead. Taking the better of the two in each garden is a choice that no
 user could make. We also report the comparison with the best of all four
-genomic offsets (with the LFMM2 genetic gap), which was the comparator of
-the analysis plan; we added the comparison with gradient forest and RDA
-after the held-out results were in.
+genomic offsets, with the LFMM2 genetic gap.
 
 \paragraph{Results.} The table gives the Spearman correlation across
 populations (mean over gardens and replicates), and the difference between
@@ -1093,60 +1098,47 @@ best of all four genomic offsets, across populations.
  & & Env. & Grad. & & \multicolumn{2}{c}{LFMM2 gap} & \multicolumn{2}{c}{\ecolocator $-$ GF, RDA} & \ecolocator $-$ \\
 Condition & \ecolocator & dist. & forest & RDA & $K=1$ & $K=5$ & populations & individuals & all four (pop.) \\
 \midrule
-$\sigma_D=0.1$, GA 1--3 & 0.57--0.61 & 0.53--0.56 & 0.65--0.71 & 0.62--0.67 & 0.75--0.78 & 0.82--0.84 & $-0.15$ to $-0.17$ & $-0.10$ to $-0.12$ & $-0.26$ to $-0.29$ \\
-$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.779 & 0.533 & 0.735 & 0.707 & 0.826 & 0.802 & $-0.017 \pm 0.041$ & $+0.007 \pm 0.038$ & $-0.103$ \\
-$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.848 & 0.522 & 0.689 & 0.691 & 0.768 & 0.720 & $+0.074 \pm 0.031$ & $+0.108 \pm 0.030$ & $+0.017$ \\
-$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.894 & 0.503 & 0.654 & 0.654 & 0.689 & 0.635 & $+0.174 \pm 0.038$ & $+0.204 \pm 0.027$ & $+0.130$ \\
-$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.898 & 0.498 & 0.710 & 0.677 & 0.732 & 0.642 & $+0.136 \pm 0.033$ & $+0.172 \pm 0.023$ & $+0.081$ \\
-$H=0.5$ & 0.856 & 0.561 & 0.815 & 0.757 & 0.827 & 0.726 & $+0.006 \pm 0.026$ & $+0.052 \pm 0.024$ & $-0.019$ \\
-$H=1$ & 0.868 & 0.571 & 0.810 & 0.716 & 0.771 & 0.713 & $+0.032 \pm 0.031$ & $+0.041 \pm 0.025$ & $+0.016$ \\
-$U=2\times10^{-4}$ & 0.828 & 0.535 & 0.845 & 0.789 & 0.832 & 0.765 & $-0.036 \pm 0.015$ & $+0.000 \pm 0.013$ & $-0.056$ \\
-$U=2\times10^{-3}$ & 0.836 & 0.550 & 0.813 & 0.790 & 0.846 & 0.762 & $-0.013 \pm 0.031$ & $+0.007 \pm 0.027$ & $-0.046$ \\
-$U=2\times10^{-2}$ & 0.885 & 0.525 & 0.842 & 0.802 & 0.825 & 0.739 & $+0.021 \pm 0.023$ & $+0.031 \pm 0.020$ & $-0.004$ \\
-$U=2\times10^{-1}$ & 0.912 & 0.553 & 0.861 & 0.797 & 0.856 & 0.782 & $+0.036 \pm 0.018$ & $+0.089 \pm 0.017$ & $+0.009$ \\
+$\sigma_D=0.1$, GA 1 & 0.765 & 0.524 & 0.762 & 0.678 & 0.794 & 0.844 & $-0.045 \pm 0.030$ & $+0.009 \pm 0.027$ & $-0.111$ \\
+$\sigma_D=0.1$, GA 2 & 0.793 & 0.527 & 0.757 & 0.715 & 0.777 & 0.849 & $-0.021 \pm 0.026$ & $+0.026 \pm 0.025$ & $-0.093$ \\
+$\sigma_D=0.1$, GA 3 & 0.755 & 0.544 & 0.753 & 0.665 & 0.751 & 0.832 & $-0.036 \pm 0.026$ & $+0.009 \pm 0.024$ & $-0.111$ \\
+$\sigma_D=0.3$, $\sigma_K=0.3$ & 0.928 & 0.546 & 0.798 & 0.728 & 0.810 & 0.837 & $+0.092 \pm 0.024$ & $+0.120 \pm 0.024$ & $+0.032$ \\
+$\sigma_D=0.3$, $\sigma_K=0.5$ & 0.928 & 0.527 & 0.787 & 0.740 & 0.803 & 0.742 & $+0.099 \pm 0.020$ & $+0.154 \pm 0.016$ & $+0.068$ \\
+$\sigma_D=0.3$, $\sigma_K=0.7$ & 0.914 & 0.522 & 0.700 & 0.683 & 0.724 & 0.646 & $+0.147 \pm 0.028$ & $+0.186 \pm 0.021$ & $+0.109$ \\
+$\sigma_D=0.5$, $\sigma_K=0.5$ & 0.923 & 0.499 & 0.759 & 0.725 & 0.690 & 0.662 & $+0.120 \pm 0.020$ & $+0.142 \pm 0.022$ & $+0.093$ \\
+$H=0.5$ & 0.909 & 0.554 & 0.763 & 0.717 & 0.799 & 0.732 & $+0.100 \pm 0.018$ & $+0.153 \pm 0.014$ & $+0.060$ \\
+$H=1$ & 0.940 & 0.596 & 0.787 & 0.726 & 0.815 & 0.700 & $+0.127 \pm 0.020$ & $+0.148 \pm 0.016$ & $+0.093$ \\
+$U=2\times10^{-4}$ & 0.906 & 0.530 & 0.804 & 0.781 & 0.822 & 0.763 & $+0.049 \pm 0.022$ & $+0.097 \pm 0.032$ & $+0.023$ \\
+$U=2\times10^{-3}$ & 0.901 & 0.530 & 0.836 & 0.729 & 0.776 & 0.743 & $+0.038 \pm 0.034$ & $+0.109 \pm 0.029$ & $+0.024$ \\
+$U=2\times10^{-2}$ & 0.913 & 0.571 & 0.831 & 0.796 & 0.831 & 0.735 & $+0.049 \pm 0.024$ & $+0.125 \pm 0.020$ & $+0.026$ \\
+$U=2\times10^{-1}$ & 0.935 & 0.552 & 0.815 & 0.779 & 0.838 & 0.766 & $+0.079 \pm 0.023$ & $+0.163 \pm 0.020$ & $+0.046$ \\
 \bottomrule
 \end{tabular}}
 \end{center}
 
 \begin{itemize}
-\item \textbf{Populations, against gradient forest and RDA.} \ecolocator
-  is ahead at $\sigma_D=0.3$ with $\sigma_K=0.5$ ($+0.07$; ahead in 60\%
-  of replicates) and $\sigma_K=0.7$ ($+0.17$; 90\%), and at
-  $\sigma_D=0.5$ ($+0.14$; 90\%). It ties at $\sigma_K=0.3$, on the
-  smoother maps, and at the polygenicity rates, except the lowest, where it
-  is slightly behind ($-0.04 \pm 0.02$). Under the strongest structure
-  ($\sigma_D=0.1$) it is behind by 0.15--0.17.
-\item \textbf{Populations, against the LFMM2 genetic gap.} The genetic gap
-  corrects for structure with latent factors, and it is the best genomic
-  offset where structure is strong or selection is strong. Against the best
-  of all four, \ecolocator is behind at $\sigma_D=0.1$ ($-0.26$ to
-  $-0.29$), at $\sigma_K=0.3$ ($-0.10$), and at the two lowest
-  polygenicity rates ($-0.05$ to $-0.06$); it is still ahead at
-  $\sigma_K=0.7$ ($+0.13$) and $\sigma_D=0.5$ ($+0.08$).
+\item \textbf{Populations.} Against the better of gradient forest and RDA
+  in each garden, \ecolocator is ahead in every condition with
+  $\sigma_D \geq 0.3$, on the smoother maps, and at every polygenicity
+  rate ($+0.04$ to $+0.15$; ahead in 60--100\% of replicates). Under the
+  strongest structure ($\sigma_D=0.1$) they are about even ($-0.02$ to
+  $-0.05$, within 1.5 SE). Against the best of all four genomic offsets
+  the picture is the same, except at $\sigma_D=0.1$, where the LFMM2
+  genetic gap with $K=5$ is ahead by 0.09--0.11.
 \item \textbf{Individuals.} \ecolocator ranks individuals within a place.
-  Against gradient forest and RDA it is ahead at $\sigma_D \geq 0.3$ with
-  $\sigma_K \geq 0.5$ ($+0.11$ to $+0.20$), on the smoother maps ($+0.04$
-  to $+0.05$), and at the highest polygenicity rate ($+0.09$); it ties at
-  $\sigma_K=0.3$ and at the other polygenicity rates, and it is behind at
-  $\sigma_D=0.1$ ($-0.10$ to $-0.12$).
-\item \textbf{Which variable matters.} The weights find the optimum when
-  dispersal is not limiting: at $\sigma_D \geq 0.3$ it has the largest
-  weight in 78--100\% of the fold models on the rough maps and in 90--100\%
-  at the polygenicity rates (median ratio to the largest other weight
-  1.5--7.3). On the smoother maps the optimum still has the largest weight
-  in 83--90\% of fold models, but the weights are smaller (0.07 and 0.04,
-  against 0.09--0.13 on rough maps): with a smooth optimum, the genotype
-  adds less beyond the predicted location. At $\sigma_D=0.1$ all variables
-  get weights of about 0.1, and the optimum is the largest in only
-  27--33\% of fold models: with little dispersal, the genotype predicts
-  every variable beyond the predicted location by about the same amount.
+  Against gradient forest and RDA it is ahead in every condition with
+  $\sigma_D \geq 0.3$ ($+0.10$ to $+0.19$; ahead in 90--100\% of
+  replicates) and even at $\sigma_D=0.1$.
+\item \textbf{Which variable matters.} With the effective weights
+  $w_c/m_c$, the optimum has the largest weight in every fold model at
+  $\sigma_D \geq 0.3$, on the smoother maps, and at the polygenicity rates
+  (median ratio to the largest other weight 7--13), and in 85--87\% of fold
+  models at $\sigma_D=0.1$ (median ratio 2.1--2.8).
 \item \textbf{A correlated variable.} With the fourth variable
-  ($r \approx 0.8$ with the optimum), its weight is 0.07--0.09 at
-  $\sigma_D \geq 0.3$, near the optimum's (0.09--0.13), and the optimum is
-  the largest in 71--92\% of fold models. Against gradient forest and RDA
-  across populations, \ecolocator is at $-0.01$ ($\sigma_K=0.3$), $+0.06$
-  ($\sigma_K=0.5$), $+0.11$ ($\sigma_K=0.7$), and $+0.09$
-  ($\sigma_D=0.5$), and at $-0.09$ to $-0.12$ at $\sigma_D=0.1$.
+  ($r \approx 0.8$ with the optimum), the optimum still has the largest
+  effective weight in every fold model at $\sigma_D \geq 0.3$ (median ratio
+  2.0--2.8) and in 83--86\% at $\sigma_D=0.1$. Across populations,
+  \ecolocator is ahead of gradient forest and RDA by $+0.10$ to $+0.13$ at
+  $\sigma_D \geq 0.3$ and even at $\sigma_D=0.1$ ($-0.01$ to $+0.01$).
 \end{itemize}
 
 \begin{figure}[htbp]
@@ -1158,42 +1150,46 @@ of fitness across populations (A) and individuals (B), mean over the five
 gardens and the replicates of each condition (20 per condition, 10 per
 polygenicity rate $U$), with three environmental variables without
 selection. \ecolocator (blue) weights each variable by how much the
-genotype predicts it beyond location; the genomic offsets (grey) are the
-LFMM2 genetic gap, RDA, and gradient forest; environmental distance (open)
-uses the environment of origin. \textbf{C)} \ecolocator minus the better
-of gradient forest and RDA in each garden, mean over replicates with 95\%
-intervals, across populations (filled) and individuals (open).
-\textbf{D)} Covariate weights of \ecolocator's fold models, one point per
-fold model and variable; bars: means. Blue: the optimum; grey: the three
-variables without selection; orange: the variable correlated with the
-optimum, from the second run on the steady-state replicates. Groups on the
-$x$ axis: the conditions of Fig.~2 (GA: genetic architecture), the smoother
-maps ($H$: Hurst exponent), and the polygenicity rates.}
+genotype predicts it beyond location, divided by the variable's prediction
+error; the genomic offsets (grey) are the LFMM2 genetic gap, RDA, and
+gradient forest; environmental distance (open) uses the environment of
+origin. \textbf{C)} \ecolocator minus the better of gradient forest and
+RDA in each garden, mean over replicates with 95\% intervals, across
+populations (filled) and individuals (open). \textbf{D)} Effective weights
+($w_c/m_c$) of \ecolocator's fold models, one point per fold model and
+variable; bars: means. Blue: the optimum; grey: the three variables
+without selection; orange: the variable correlated with the optimum, from
+the second run on the steady-state replicates. Groups on the $x$ axis: the
+conditions of Fig.~2 (GA: genetic architecture), the smoother maps ($H$:
+Hurst exponent), and the polygenicity rates.}
 \label{fig:offsets}
 \end{figure}
 % Figure: pipeline simulations/offsets_multi/plot_figure.py --main
-% results/offsets_gardens --correlated results/offsets_gardens_corr.
+% results/offsets_confirm --correlated results/offsets_confirm_corr.
 
 \points{R1.1, R1.4 (compare with genomic offsets, e.g.\ gradient forest;
 predict maladaptation), R2.3 (show how maladaptation would be predicted)}
 \status{Done on held-out replicates (200 in the main run, 140 in the
-second). The weights and \texttt{offset} are in the \ecolocator package on
-a branch, not yet reviewed. Open: the \dfir seed-zone analysis with this
-offset (R1.4, R1.6), which needs climate projections and Jordan's data.}
+second). The weights, errors, and \texttt{offset} are in the \ecolocator
+package on a branch, not yet reviewed. Open: the \dfir seed-zone analysis
+with this offset (R1.4, R1.6), which needs climate projections and
+Jordan's data.}
 
 % Code / results:
 %   Pipeline branch feature/offsets-location-route, simulations/offsets_multi/
-%   (README.md with the analysis plan, committed in 059612d before scoring;
-%   Snakefile, config.yaml, config_corr.yaml, summarize.py, plot_figure.py,
-%   snp_list.py, sim_targets.py), config/conditions_gardens.tsv, and
-%   workflow/scripts/env_layers.py, ecolocator_offsets.py, offsets_eval.py,
-%   offsets_genomic.R, phenotypes.py.
+%   (README.md: analysis plan 1, committed in 059612d, and plan 2, committed
+%   in 99e0c3c, both before scoring; Snakefile, config_confirm.yaml,
+%   config_confirm_corr.yaml, summarize.py, plot_figure.py, snp_list.py,
+%   sim_targets.py; screen/ for the screen of variants on the development
+%   replicates), config/conditions_gardens.tsv, and workflow/scripts/
+%   env_layers.py, ecolocator_offsets.py, offsets_eval.py, offsets_genomic.R,
+%   phenotypes.py.
 %   Package: kr-colab/ecolocator branch feature/location-route, commit
-%   5c9dc73 (EcoLocator.fit weight_folds, env_weights_, offset).
+%   cd22e58 (EcoLocator.fit weight_folds, env_weights_, env_mse_, offset).
 %   Results: talapas .../ecolocator_pipeline_main/simulations/results/
-%   offsets_gardens/ and offsets_gardens_corr/; tables from
-%   offsets_multi/summarize.py. Development runs: results/offsets_multi/ and
-%   offsets_multi_corr/ (workflow at 5624cf5).
+%   offsets_confirm/ and offsets_confirm_corr/ (plan 2); offsets_gardens/
+%   and offsets_gardens_corr/ (plan 1, earlier offset); offsets_screen/ and
+%   offsets_multi/ (development).
 
 %======================================================================
 \section{Corrections to the submitted Methods}
