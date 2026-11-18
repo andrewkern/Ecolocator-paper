@@ -622,34 +622,96 @@ Benjamini--Hochberg $q < 0.05$ \citep{benjamini_hochberg_1995}.
 \section{Location-corrected GEA}
 \label{sec:correctedgea}
 
-The location-corrected GEA uses \ecolocator's predicted locations as the
-correction for population structure. For every SNP $j$ we fit, by least
-squares,
-\begin{equation*}
-g_j = b_0 + b\,e + f(\hat{x}, \hat{y}) + \varepsilon,
-\end{equation*}
-where $g_j$ is the 0/1/2 genotype, $e$ the environment, and $f$ a smooth
-two-dimensional function (tensor-product cubic B-splines, up to 5 knots per
-axis, fewer for small samples, at least 10 individuals per basis function)
-of the location that \ecolocator predicted for the individual with a model
-that did not see it (the LOO predictions, \cref{sec:loo}). The predicted
-location stands for population structure; the true location would also
-carry the environment and remove the signal. The $z$-scores
-$\hat{b}/\mathrm{SE}(\hat{b})$ are calibrated by the genomic inflation factor,
-as in LFMM2. Only SNPs with MAF $\geq 0.05$ are tested, so the factor
-comes from the SNPs we score (\cref{sec:calibration}).
+A genotype-environment association (GEA) asks whether the genotype at a
+SNP follows the environment. Population structure confounds this question:
+individuals that live near each other share ancestry, and they also share
+an environment, so a neutral SNP can follow the environment only because
+of where its carriers live. The location-corrected GEA removes this effect
+with the location that \ecolocator predicts from each individual's
+genotype. The test has four steps.
 
-\status{Done. Over 873 replicates of the submitted-style runs, it ranked
-QTL as well as LFMM2 with $K=5$ (mean difference in AUC-PR $-0.001$), and
-better than LFMM2 with $K=1$ ($+0.028$; better in 69\% of replicates), SHAP
-($+0.057$; 75\%), and the same test with true locations ($+0.030$; 78\%).
-Candidate for the main locus-discovery result.}
+\paragraph{1. A predicted location for each individual.}
+Each individual gets one predicted location $(\hat{x}_i, \hat{y}_i)$ from a
+model that did not see it. We split the individuals into 5 folds, and a
+model fitted to the other 4 folds predicts the individuals of each fold
+(\cref{sec:pgs}). The folds only make sure that no prediction comes from a
+model that saw the individual. They play no part in the steps below, which
+use all individuals together.
+
+\paragraph{2. One spline basis for all individuals.}
+On each axis we place $k$ knots at even spacing between the smallest and
+the largest predicted coordinate of all individuals. The knots define
+$k+2$ cubic B-splines per axis: smooth bumps that cover the range. Their
+tensor product gives $(k+2)^2$ functions $B_m(\hat{x}, \hat{y})$, and each
+one is a smooth bump over one rectangle of the landscape. We evaluate
+every function at every individual's predicted location. This gives one
+matrix with one row per individual and $(k+2)^2$ columns. We make this
+matrix once, and every SNP uses the same matrix. The default is $k = 5$,
+which gives 49 functions. With fewer than 10 individuals per function we
+use fewer knots, down to 2 knots (16 functions).
+
+\paragraph{3. One regression for each SNP.}
+For each SNP $j$, we fit by least squares, over all individuals $i$,
+\begin{equation*}
+g_{ij} = b_0 + b_j\, e_i + \sum_{m} c_{jm}\, B_m(\hat{x}_i, \hat{y}_i) + \varepsilon_{ij},
+\end{equation*}
+where $g_{ij}$ is the genotype (0, 1, or 2 copies of the allele) and $e_i$
+the environment of individual $i$. The basis is the same for every SNP, but
+each SNP gets its own coefficients $c_{jm}$. These coefficients give SNP $j$
+its own smooth surface over the landscape: the genotype that we expect from
+where the individual's genotypes place it, that is, the SNP's
+allele-frequency map. The coefficient $b_j$ is the association with the
+environment beyond that surface. This is the same idea as the correction by
+principal components in a GWAS, but here the structure covariates are a
+flexible function of the predicted location. (In the computation we remove
+the intercept and the basis from the data once for all SNPs. This gives the
+same least-squares estimates as one fit per SNP.)
+
+\paragraph{4. Calibration.}
+The statistic of SNP $j$ is $z_j = \hat{b}_j / \mathrm{SE}(\hat{b}_j)$. As
+in LFMM2, we divide all $z_j$ by $\sqrt{\lambda}$, where
+$\lambda = \mathrm{median}(z_j^2)/0.456$ is the genomic inflation factor.
+Then we compute two-sided $p$-values and Benjamini--Hochberg $q$-values. We
+test only SNPs with a minor-allele frequency of at least 0.05, so that
+$\lambda$ comes from the SNPs that we score (\cref{sec:calibration}).
+
+\paragraph{Why the predicted location.}
+The predicted location is what the genotypes say about where an individual
+comes from. Thus it describes population structure, and population
+structure is the confounder. The true location also sets the environment.
+A correction by the true location would therefore also remove the signal
+of the environment, not only the structure.
+
+\paragraph{The number of knots.}
+More knots let each SNP's surface follow structure at a finer scale. But
+where the environment changes smoothly across the landscape, a finer
+surface also takes up more of the environment's signal. We will choose the
+default number of knots on the development simulations.
+
+\paragraph{Software.}
+The test is in the \ecolocator package as \texttt{ecolocator.gea} (the
+command \texttt{ecolocator gea}). It reads the genotypes, the
+environmental variables, and a table of predicted locations (for example
+the output of \texttt{ecolocator loo}). It gives the same $z$-scores and
+inflation factor as the pipeline's script.
+
+\status{Done. Over 873 replicates of the submitted-style runs, with the
+LOO locations of the submitted network, it ranked QTL as well as LFMM2 with
+$K=5$ (mean difference in AUC-PR $-0.001$), and better than LFMM2 with
+$K=1$ ($+0.028$; better in 69\% of replicates), SHAP ($+0.057$; 75\%), and
+the same test with true locations ($+0.030$; 78\%). Candidate for the main
+locus-discovery result. The steady-state and polygenicity runs are being
+redone (2026-11-18) with \ecolocator's cross-fitted locations from the
+package. In the package: PR \#33, not merged yet. Open: the default
+number of knots.}
 
 % Code / results:
-%   workflow/scripts/location_corrected_gea.py (rule corrected_gea).
-%   Outputs per replicate: corrected_gea/results.tsv, summary.tsv.
-%   873-replicate comparison: talapas /projects/kernlab/adkern/
-%     ecolocator_pipeline/audit/corrected_gea.tsv
+%   Pipeline: workflow/scripts/location_corrected_gea.py (rule
+%   corrected_gea_pgs, with pgs/predictions.tsv). Outputs per replicate:
+%   corrected_gea_pgs/results.tsv, summary.tsv.
+%   Package: kr-colab/ecolocator PR #33 (ecolocator/src/ecolocator/gea.py).
+%   873-replicate comparison (LOO locations of the submitted network):
+%     talapas /projects/kernlab/adkern/ecolocator_pipeline/audit/corrected_gea.tsv
 
 %======================================================================
 \section{Calibration of the GEA tests}
