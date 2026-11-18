@@ -550,6 +550,87 @@ and environment from genotypes alone.}
 \end{figure}
 % Figure source: figures/EcolocatorARC_pgs.tex (standalone TikZ; pdflatex).
 
+\paragraph{Loss function.} We give the objective as the \ecolocator
+package implements it. Let $g_{ij}$ be the genotype (0, 1, or 2) of
+sample $i$ at SNP $j$. The network standardizes it,
+$z_{ij} = (g_{ij} - m_j)/d_j$, with the mean $m_j$ and SD $d_j$ of SNP $j$
+over the training samples. The true location of sample $i$ is
+$\mathbf{u}_i = \big((x_i - \bar{x})/s_x,\ (y_i - \bar{y})/s_y\big)$, with
+each coordinate centred and scaled by its own SD. The trunk and the
+location head give the predicted location $\hat{\mathbf{u}}_i$. There are
+$K$ environmental covariates (one in the simulations). Covariate $k$ of
+sample $i$ is $e_{ik}$, centred and scaled by its SD, after a log transform
+if the user asks for one. Its polygenic score is
+$s_{ik} = \mathbf{w}_k \cdot \mathbf{z}_i$, without an intercept, and its
+prediction is
+\begin{equation*}
+\hat{e}_{ik} = s_{ik} + h_k\big(s_{ik}, \hat{\mathbf{u}}_i\big),
+\end{equation*}
+where $h_k$ is the correction head of covariate $k$ (16 ELU units, then one
+linear unit). For a mini-batch $B$ of training samples, the loss is
+\begin{align*}
+\mathcal{L} \;=\;& \lambda_{\mathrm{loc}}\, \frac{1}{|B|} \sum_{i \in B}
+  \big\lVert \hat{\mathbf{u}}_i - \mathbf{u}_i \big\rVert_2
+ \;+\; \lambda_{\mathrm{env}}\, \frac{1}{|B|} \sum_{i \in B} \frac{1}{K}
+  \sum_{k=1}^{K} \big(\hat{e}_{ik} - e_{ik}\big)^2 \\
+&+\; \lambda_{\mathrm{loc}}\, \omega \sum_{W \in \mathcal{T}} \lVert W \rVert^2
+ \;+\; \lambda_{\mathrm{env}}\, \omega \sum_{k=1}^{K} \sum_{W \in \mathcal{H}_k} \lVert W \rVert^2
+ \;+\; \lambda_{\mathrm{env}}\, \frac{\rho}{K} \sum_{k=1}^{K} \lVert \mathbf{w}_k \rVert^2 .
+\end{align*}
+The five terms are:
+\begin{itemize}
+\item the location error: the mean Euclidean distance between the
+  predicted and the true location, in the scaled coordinates;
+\item the covariate error: the mean squared error, averaged over the $K$
+  covariates;
+\item weight decay on the trunk and the location head: $\mathcal{T}$ is the
+  set of their weight matrices (not the biases), and $\omega = 2 \times
+  10^{-4}$;
+\item weight decay on the correction heads: $\mathcal{H}_k$ is the set of
+  the weight matrices of head $k$, with the same $\omega$;
+\item the ridge penalty on the score weights, with strength $\rho$ per
+  covariate.
+\end{itemize}
+The loss weights are $\lambda_{\mathrm{loc}} = \lambda_{\mathrm{env}} = 1$.
+Each penalty is multiplied by the loss weight of its output, so the loss
+weights set only the balance between location and covariates. The score
+penalty is divided by $K$, as the covariate error is: relative to the
+error of its own covariate, the penalty on $\mathbf{w}_k$ is $\rho$ for any
+number of covariates.
+
+Two parts of the network do not appear in the loss as terms. Dropout acts
+only in training: on the standardized genotypes before the trunk (rate
+0.1) and after each trunk layer (rate 0.25). The gradient stop also acts
+only in training. In $h_k(s_{ik}, \hat{\mathbf{u}}_i)$, the predicted
+location is a constant for the covariate error, so the covariate error
+does not change the trunk. Thus the loss separates into two problems that
+are trained together: the location error and its weight decay train the
+trunk and the location head; the covariate error and its two penalties
+train the scores and the correction heads. If $h_k$ were constant,
+the covariate part would be ridge regression of the covariate on the
+standardized genotypes.
+
+\paragraph{Training and the choice of $\rho$.} We train with Adam
+(learning rate $10^{-3}$) on mini-batches of 32 samples, for at most 5,000
+epochs. A random 10\% of the training samples is held out for validation,
+and the validation loss is $\mathcal{L}$ on those samples. The learning
+rate is halved after 16 epochs without improvement of the validation
+loss. Training stops after 100 epochs without improvement, and the weights
+of the epoch with the lowest validation loss are restored. For each value
+of $\rho$ in $\{20, 60, 200, 600\}$, we train the network once from the
+same seed. We keep the value whose restored network has the lowest
+covariate validation error (the second term only).
+
+Up to a factor of 2 on the whole objective, this is the objective of the
+benchmark below. The benchmark used loss weights of 0.5, score penalties
+$\rho' \in \{10, 30, 100, 300\}$ not multiplied by the loss weight, and
+$\omega' = 10^{-4}$; thus $\rho = 2\rho'$ and $\omega = 2\omega'$. With one
+covariate, the division by $K$ has no effect. On the same replicates, the
+package fit and the benchmark fit give the same accuracy (within 0.01 in
+$R^2$). The location route and the covariate weights of the offsets
+(\cref{sec:offsets}) are fitted after the network, and they do not enter
+this loss.
+
 \paragraph{Benchmark.} Designs are compared by 5-fold cross-fitting with
 folds fixed per replicate (the same folds for every design). Designs were
 chosen on replicates 1--20 of each condition and evaluated on 21--100.
@@ -586,7 +667,9 @@ replicates, with genomic control on SNPs with MAF $\geq 0.05$
 0.07--0.22), at similar power.
 
 \points{R1.1 (the method as a GEA approach)}
-\status{Benchmark done. Not yet in the \ecolocator package.}
+\status{Benchmark done. In the \ecolocator package (kr-colab/ecolocator
+PR \#30, merged; main at 852510d), with the loss above; the pipeline fits
+it with the package since 32d6e53 (rule pgs\_cv).}
 
 % Code / results:
 %   Pipeline repository, branch feature/netbench: simulations/netbench/
